@@ -5,7 +5,7 @@ Reads and merges settings from the configuration hierarchy
 import json
 from pathlib import Path
 from typing import Dict, Any, Optional
-import logging
+from loguru import logger
 
 from app.constants import (
     get_managed_settings_path,
@@ -15,7 +15,6 @@ from app.constants import (
     SETTINGS_PRECEDENCE
 )
 
-logger = logging.getLogger(__name__)
 
 class SettingsAggregator:
     """

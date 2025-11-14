@@ -1,7 +1,7 @@
 """
 Claudia Backend - Claude Code Companion API
 """
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Depends
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -11,9 +11,11 @@ from typing import List, Dict, Any, Optional
 from pathlib import Path
 import asyncio
 import json
-import logging
+import time
+import uuid
 
 from app.config import settings
+from app.logging_config import setup_logging
 from app.services import FileMonitor, SettingsAggregator, SessionTracker
 from app.db.database import get_db, init_db, close_db, AsyncSessionLocal
 from app.db.models import SessionModel
@@ -26,8 +28,7 @@ from app.constants import (
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # Configure logging
-logging.basicConfig(level=settings.backend_log_level)
-logger = logging.getLogger(__name__)
+logger = setup_logging()
 
 # Global service instances
 file_monitor: Optional[FileMonitor] = None
@@ -192,6 +193,35 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Request logging middleware
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Log HTTP requests and responses with timing and request IDs"""
+    request_id = str(uuid.uuid4())[:8]  # Short request ID
+
+    # Log request
+    logger.info(
+        f"→ {request.method} {request.url.path}",
+        extra={"request_id": request_id, "client": request.client.host if request.client else "unknown"}
+    )
+
+    # Process request and measure duration
+    start_time = time.time()
+    response = await call_next(request)
+    duration_ms = (time.time() - start_time) * 1000
+
+    # Log response
+    logger.info(
+        f"← {request.method} {request.url.path} [{response.status_code}] {duration_ms:.2f}ms",
+        extra={"request_id": request_id}
+    )
+
+    # Add request ID to response headers
+    response.headers["X-Request-ID"] = request_id
+
+    return response
 
 
 @app.get("/")

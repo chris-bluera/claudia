@@ -8,9 +8,7 @@ from pathlib import Path
 from typing import Callable, Dict, Any, Optional
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler, FileSystemEvent
-import logging
-
-logger = logging.getLogger(__name__)
+from loguru import logger
 
 class ClaudeCodeEventHandler(FileSystemEventHandler):
     """Handle file system events in Claude Code directories"""

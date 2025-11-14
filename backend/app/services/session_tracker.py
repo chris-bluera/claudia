@@ -4,15 +4,13 @@ Tracks active and recent sessions with database persistence
 """
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Any, Dict
-import logging
 from sqlalchemy import select, update, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from loguru import logger
 
 from app.db.models import SessionModel, ToolExecutionModel
 from app.constants import SESSION_TIMEOUT_MINUTES
-
-logger = logging.getLogger(__name__)
 
 
 class SessionTracker:
@@ -33,7 +31,9 @@ class SessionTracker:
         """Start tracking a new session by inserting into database"""
 
         # Check if session already exists
-        stmt = select(SessionModel).where(SessionModel.session_id == session_id)
+        stmt = select(SessionModel).where(
+            SessionModel.session_id == session_id
+        ).options(selectinload(SessionModel.tool_executions))
         result = await db.execute(stmt)
         existing = result.scalar_one_or_none()
 
@@ -57,6 +57,9 @@ class SessionTracker:
 
         db.add(session)
         await db.flush()  # Flush to get the ID without committing
+
+        # Refresh with eager loading to prevent MissingGreenlet in to_dict()
+        await db.refresh(session, ['tool_executions'])
 
         logger.info(f"Started tracking session: {session_id} ({project_name})")
         return session
