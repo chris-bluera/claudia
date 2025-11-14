@@ -1,217 +1,257 @@
 """
 Session tracking service for Claude Code
-Tracks active and recent sessions with metadata
+Tracks active and recent sessions with database persistence
 """
 from datetime import datetime, timezone, timedelta
-from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import List, Optional, Any, Dict
 import logging
+from sqlalchemy import select, update, func
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models import SessionModel, ToolExecutionModel
 from app.constants import SESSION_TIMEOUT_MINUTES
 
 logger = logging.getLogger(__name__)
 
 
-class Session:
-    """Represents a Claude Code session"""
-
-    def __init__(
-        self,
-        session_id: str,
-        project_path: str,
-        project_name: str,
-        started_at: Optional[datetime] = None,
-        runtime_config: Optional[Dict[str, Any]] = None
-    ):
-        self.session_id = session_id
-        self.project_path = project_path
-        self.project_name = project_name
-        self.started_at = started_at or datetime.now(timezone.utc)
-        self.ended_at: Optional[datetime] = None
-        self.is_active = True
-        self.runtime_config = runtime_config or {}
-        self.last_activity = self.started_at
-        self.tool_count = 0
-        self.transcript_path: Optional[str] = None
-
-    def update_activity(self):
-        """Update last activity timestamp"""
-        self.last_activity = datetime.now(timezone.utc)
-
-    def end(self):
-        """Mark session as ended"""
-        self.is_active = False
-        self.ended_at = datetime.now(timezone.utc)
-
-    def is_timed_out(self, timeout_minutes: int = SESSION_TIMEOUT_MINUTES) -> bool:
-        """Check if session has timed out due to inactivity"""
-        if not self.is_active:
-            return False
-
-        timeout = timedelta(minutes=timeout_minutes)
-        return (datetime.now(timezone.utc) - self.last_activity) > timeout
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert session to dictionary"""
-        return {
-            'session_id': self.session_id,
-            'project_path': self.project_path,
-            'project_name': self.project_name,
-            'started_at': self.started_at.isoformat(),
-            'ended_at': self.ended_at.isoformat() if self.ended_at else None,
-            'is_active': self.is_active,
-            'runtime_config': self.runtime_config,
-            'last_activity': self.last_activity.isoformat(),
-            'tool_count': self.tool_count,
-            'transcript_path': self.transcript_path,
-            'duration_seconds': self.get_duration_seconds()
-        }
-
-    def get_duration_seconds(self) -> float:
-        """Get session duration in seconds"""
-        end_time = self.ended_at or datetime.now(timezone.utc)
-        return (end_time - self.started_at).total_seconds()
-
-
 class SessionTracker:
     """
-    Track Claude Code sessions
-    Maintains in-memory state of active and recent sessions
+    Track Claude Code sessions using database as single source of truth
+    All methods are async and require a database session
     """
 
-    def __init__(self):
-        self.sessions: Dict[str, Session] = {}
-        self.max_recent_sessions = 100  # Keep last 100 sessions in memory
-
-    def start_session(
+    async def start_session(
         self,
+        db: AsyncSession,
         session_id: str,
         project_path: str,
         project_name: str,
         transcript_path: Optional[str] = None,
         runtime_config: Optional[Dict[str, Any]] = None
-    ) -> Session:
-        """Start tracking a new session"""
-        session = Session(
+    ) -> SessionModel:
+        """Start tracking a new session by inserting into database"""
+
+        # Check if session already exists
+        stmt = select(SessionModel).where(SessionModel.session_id == session_id)
+        result = await db.execute(stmt)
+        existing = result.scalar_one_or_none()
+
+        if existing:
+            logger.warning(f"Session {session_id} already exists, returning existing")
+            return existing
+
+        # Create new session
+        session_metadata = runtime_config or {}
+        if transcript_path:
+            session_metadata['transcript_path'] = transcript_path
+
+        session = SessionModel(
             session_id=session_id,
             project_path=project_path,
             project_name=project_name,
-            runtime_config=runtime_config
+            session_metadata=session_metadata,
+            started_at=datetime.now(timezone.utc),
+            is_active=True
         )
 
-        if transcript_path:
-            session.transcript_path = transcript_path
+        db.add(session)
+        await db.flush()  # Flush to get the ID without committing
 
-        self.sessions[session_id] = session
         logger.info(f"Started tracking session: {session_id} ({project_name})")
-
-        # Cleanup old sessions
-        self._cleanup_old_sessions()
-
         return session
 
-    def end_session(self, session_id: str):
-        """Mark a session as ended"""
-        if session_id in self.sessions:
-            self.sessions[session_id].end()
-            logger.info(f"Ended session: {session_id}")
-        else:
+    async def end_session(self, db: AsyncSession, session_id: str) -> Optional[SessionModel]:
+        """Mark a session as ended by updating database"""
+        stmt = select(SessionModel).where(SessionModel.session_id == session_id)
+        result = await db.execute(stmt)
+        session = result.scalar_one_or_none()
+
+        if not session:
             logger.warning(f"Attempted to end unknown session: {session_id}")
+            return None
 
-    def update_session_activity(self, session_id: str):
-        """Update session activity timestamp"""
-        if session_id in self.sessions:
-            self.sessions[session_id].update_activity()
+        session.is_active = False
+        session.ended_at = datetime.now(timezone.utc)
 
-    def record_tool_execution(self, session_id: str):
+        await db.flush()
+        logger.info(f"Ended session: {session_id}")
+        return session
+
+    async def record_tool_execution(
+        self,
+        db: AsyncSession,
+        session_id: str,
+        tool_name: Optional[str] = None,
+        parameters: Optional[Dict[str, Any]] = None,
+        result: Optional[Dict[str, Any]] = None,
+        error: Optional[str] = None,
+        duration_ms: Optional[int] = None
+    ) -> Optional[ToolExecutionModel]:
         """Record a tool execution for a session"""
-        if session_id in self.sessions:
-            self.sessions[session_id].tool_count += 1
-            self.sessions[session_id].update_activity()
 
-    def get_session(self, session_id: str) -> Optional[Session]:
-        """Get a specific session"""
-        return self.sessions.get(session_id)
+        # Find session
+        stmt = select(SessionModel).where(SessionModel.session_id == session_id)
+        result_row = await db.execute(stmt)
+        session = result_row.scalar_one_or_none()
 
-    def get_active_sessions(self) -> List[Session]:
+        if not session:
+            logger.warning(f"Cannot record tool execution for unknown session: {session_id}")
+            return None
+
+        # Create tool execution record
+        tool_execution = ToolExecutionModel(
+            session_id=session.id,
+            tool_name=tool_name or "unknown",
+            parameters=parameters,
+            result=result,
+            error=error,
+            executed_at=datetime.now(timezone.utc),
+            duration_ms=duration_ms
+        )
+
+        db.add(tool_execution)
+        await db.flush()
+
+        return tool_execution
+
+    async def get_session(self, db: AsyncSession, session_id: str) -> Optional[SessionModel]:
+        """Get a specific session by session_id"""
+        stmt = select(SessionModel).where(SessionModel.session_id == session_id)
+        result = await db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_active_sessions(self, db: AsyncSession) -> List[SessionModel]:
         """Get all currently active sessions"""
-        # Check for timeouts
-        self._check_timeouts()
+        # Auto-timeout old sessions
+        await self._check_timeouts(db)
 
-        return [
-            session for session in self.sessions.values()
-            if session.is_active
-        ]
+        stmt = select(SessionModel).where(
+            SessionModel.is_active == True
+        ).order_by(SessionModel.started_at.desc())
 
-    def get_recent_sessions(self, hours: int = 24) -> List[Session]:
+        result = await db.execute(stmt)
+        return list(result.scalars().all())
+
+    async def get_recent_sessions(
+        self,
+        db: AsyncSession,
+        hours: int = 24
+    ) -> List[SessionModel]:
         """Get sessions from the last N hours"""
         cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
 
-        recent = [
-            session for session in self.sessions.values()
-            if session.started_at >= cutoff
-        ]
+        stmt = select(SessionModel).where(
+            SessionModel.started_at >= cutoff
+        ).order_by(SessionModel.started_at.desc())
 
-        # Sort by start time, most recent first
-        return sorted(recent, key=lambda s: s.started_at, reverse=True)
+        result = await db.execute(stmt)
+        return list(result.scalars().all())
 
-    def get_sessions_by_project(self, project_path: str) -> List[Session]:
+    async def get_sessions_by_project(
+        self,
+        db: AsyncSession,
+        project_path: str
+    ) -> List[SessionModel]:
         """Get all sessions for a specific project"""
-        return [
-            session for session in self.sessions.values()
-            if session.project_path == project_path
-        ]
+        stmt = select(SessionModel).where(
+            SessionModel.project_path == project_path
+        ).order_by(SessionModel.started_at.desc())
 
-    def get_session_count(self, active_only: bool = False) -> int:
+        result = await db.execute(stmt)
+        return list(result.scalars().all())
+
+    async def get_session_count(
+        self,
+        db: AsyncSession,
+        active_only: bool = False
+    ) -> int:
         """Get count of sessions"""
         if active_only:
-            return len(self.get_active_sessions())
-        return len(self.sessions)
+            stmt = select(func.count()).select_from(SessionModel).where(
+                SessionModel.is_active == True
+            )
+        else:
+            stmt = select(func.count()).select_from(SessionModel)
 
-    def _check_timeouts(self):
-        """Check for and mark timed-out sessions"""
-        for session in self.sessions.values():
-            if session.is_timed_out():
-                logger.info(f"Session timed out: {session.session_id}")
-                session.end()
+        result = await db.execute(stmt)
+        return result.scalar() or 0
 
-    def _cleanup_old_sessions(self):
-        """Remove old inactive sessions to prevent unbounded memory growth"""
-        if len(self.sessions) <= self.max_recent_sessions:
-            return
+    async def get_stats(self, db: AsyncSession) -> Dict[str, Any]:
+        """Get overall statistics from database"""
 
-        # Get all inactive sessions sorted by end time
-        inactive = [
-            (sid, session) for sid, session in self.sessions.items()
-            if not session.is_active and session.ended_at
-        ]
+        # Total sessions
+        total_stmt = select(func.count()).select_from(SessionModel)
+        total_result = await db.execute(total_stmt)
+        total_sessions = total_result.scalar() or 0
 
-        if not inactive:
-            return
+        # Active sessions
+        active_stmt = select(func.count()).select_from(SessionModel).where(
+            SessionModel.is_active == True
+        )
+        active_result = await db.execute(active_stmt)
+        active_sessions = active_result.scalar() or 0
 
-        # Sort by end time, oldest first
-        inactive.sort(key=lambda x: x[1].ended_at)
+        # Sessions in last 24h
+        cutoff_24h = datetime.now(timezone.utc) - timedelta(hours=24)
+        recent_stmt = select(func.count()).select_from(SessionModel).where(
+            SessionModel.started_at >= cutoff_24h
+        )
+        recent_result = await db.execute(recent_stmt)
+        sessions_24h = recent_result.scalar() or 0
 
-        # Remove oldest sessions until we're under the limit
-        to_remove = len(self.sessions) - self.max_recent_sessions
-        for i in range(min(to_remove, len(inactive))):
-            session_id = inactive[i][0]
-            del self.sessions[session_id]
-            logger.debug(f"Cleaned up old session: {session_id}")
+        # Total tool executions
+        tools_stmt = select(func.count()).select_from(ToolExecutionModel)
+        tools_result = await db.execute(tools_stmt)
+        total_tools = tools_result.scalar() or 0
 
-    def get_stats(self) -> Dict[str, Any]:
-        """Get overall statistics"""
-        active = self.get_active_sessions()
-        recent = self.get_recent_sessions(hours=24)
+        # Average session duration (for ended sessions)
+        # Using raw SQL for EXTRACT(EPOCH FROM ...) calculation
+        duration_stmt = select(
+            func.avg(
+                func.extract('epoch', SessionModel.ended_at) -
+                func.extract('epoch', SessionModel.started_at)
+            )
+        ).where(SessionModel.ended_at.isnot(None))
 
-        total_tools = sum(s.tool_count for s in self.sessions.values())
-        avg_duration = sum(s.get_duration_seconds() for s in self.sessions.values()) / len(self.sessions) if self.sessions else 0
+        duration_result = await db.execute(duration_stmt)
+        avg_duration = duration_result.scalar() or 0
+
+        # Unique projects
+        projects_stmt = select(func.count(func.distinct(SessionModel.project_path)))
+        projects_result = await db.execute(projects_stmt)
+        unique_projects = projects_result.scalar() or 0
 
         return {
-            'total_sessions': len(self.sessions),
-            'active_sessions': len(active),
-            'sessions_last_24h': len(recent),
+            'total_sessions': total_sessions,
+            'active_sessions': active_sessions,
+            'sessions_last_24h': sessions_24h,
             'total_tools_executed': total_tools,
-            'average_session_duration_seconds': avg_duration,
-            'unique_projects': len(set(s.project_path for s in self.sessions.values()))
+            'average_session_duration_seconds': float(avg_duration),
+            'unique_projects': unique_projects
         }
+
+    async def _check_timeouts(
+        self,
+        db: AsyncSession,
+        timeout_minutes: int = SESSION_TIMEOUT_MINUTES
+    ):
+        """Check for and mark timed-out sessions"""
+        cutoff = datetime.now(timezone.utc) - timedelta(minutes=timeout_minutes)
+
+        # Find active sessions with last tool execution before cutoff
+        # This is a simplified approach - we check if the session started before cutoff
+        # A more sophisticated approach would track last_activity separately
+
+        stmt = update(SessionModel).where(
+            SessionModel.is_active == True,
+            SessionModel.started_at < cutoff,
+            SessionModel.ended_at.is_(None)
+        ).values(
+            is_active=False,
+            ended_at=datetime.now(timezone.utc)
+        )
+
+        result = await db.execute(stmt)
+
+        if result.rowcount > 0:
+            logger.info(f"Timed out {result.rowcount} inactive session(s)")

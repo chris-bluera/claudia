@@ -1,7 +1,7 @@
 """
 Claudia Backend - Claude Code Companion API
 """
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -15,12 +15,15 @@ import logging
 
 from app.config import settings
 from app.services import FileMonitor, SettingsAggregator, SessionTracker
+from app.db.database import get_db, init_db, close_db, AsyncSessionLocal
+from app.db.models import SessionModel
 from app.constants import (
     EVENT_SESSION_START,
     EVENT_SESSION_END,
     EVENT_TOOL_EXECUTION,
     EVENT_SETTINGS_UPDATE
 )
+from sqlalchemy.ext.asyncio import AsyncSession
 
 # Configure logging
 logging.basicConfig(level=settings.backend_log_level)
@@ -91,12 +94,21 @@ def handle_file_event(event: Dict[str, Any]):
         project_path = event.get('project_path')
 
         if session_id and project_path:
-            session_tracker.start_session(
-                session_id=session_id,
-                project_path=project_path,
-                project_name=Path(project_path).name
-            )
+            async def start_session_task():
+                async with AsyncSessionLocal() as db:
+                    try:
+                        await session_tracker.start_session(
+                            db=db,
+                            session_id=session_id,
+                            project_path=project_path,
+                            project_name=Path(project_path).name
+                        )
+                        await db.commit()
+                    except Exception as e:
+                        logger.error(f"Error starting session: {e}")
+                        await db.rollback()
 
+            asyncio.create_task(start_session_task())
             # Broadcast to clients
             asyncio.create_task(broadcast_event(EVENT_SESSION_START, event))
 
@@ -104,7 +116,19 @@ def handle_file_event(event: Dict[str, Any]):
         # Update session activity
         session_id = event.get('session_id')
         if session_id:
-            session_tracker.record_tool_execution(session_id)
+            async def record_tool_task():
+                async with AsyncSessionLocal() as db:
+                    try:
+                        await session_tracker.record_tool_execution(
+                            db=db,
+                            session_id=session_id
+                        )
+                        await db.commit()
+                    except Exception as e:
+                        logger.error(f"Error recording tool execution: {e}")
+                        await db.rollback()
+
+            asyncio.create_task(record_tool_task())
 
         # Broadcast to clients
         asyncio.create_task(broadcast_event(EVENT_TOOL_EXECUTION, event))
@@ -121,6 +145,10 @@ async def lifespan(app: FastAPI):
 
     # Startup
     logger.info("Starting Claudia backend services...")
+
+    # Initialize database connection pool
+    await init_db()
+    logger.info("✓ Database initialized")
 
     # Initialize services
     settings_aggregator = SettingsAggregator(settings.claude_settings_path)
@@ -141,6 +169,7 @@ async def lifespan(app: FastAPI):
     logger.info("Stopping Claudia backend services...")
     if file_monitor:
         file_monitor.stop()
+    await close_db()
     logger.info("✓ All services stopped")
 
 
@@ -177,25 +206,29 @@ async def root():
 
 
 @app.get("/health")
-async def health_check():
+async def health_check(db: AsyncSession = Depends(get_db)):
     """Health check endpoint"""
+    active_sessions = 0
+    if session_tracker:
+        active_sessions = await session_tracker.get_session_count(db, active_only=True)
+
     status = {
         "status": "healthy",
         "file_monitor": file_monitor.is_running() if file_monitor else False,
         "active_connections": len(active_connections),
-        "active_sessions": session_tracker.get_session_count(active_only=True) if session_tracker else 0
+        "active_sessions": active_sessions
     }
     return status
 
 
 # Session endpoints
 @app.get("/api/sessions/active")
-async def get_active_sessions():
+async def get_active_sessions(db: AsyncSession = Depends(get_db)):
     """Get all currently active Claude Code sessions"""
     if not session_tracker:
         raise HTTPException(status_code=503, detail="Session tracker not initialized")
 
-    sessions = session_tracker.get_active_sessions()
+    sessions = await session_tracker.get_active_sessions(db)
     return {
         "sessions": [s.to_dict() for s in sessions],
         "count": len(sessions)
@@ -203,12 +236,12 @@ async def get_active_sessions():
 
 
 @app.get("/api/sessions/recent")
-async def get_recent_sessions(hours: int = 24):
+async def get_recent_sessions(hours: int = 24, db: AsyncSession = Depends(get_db)):
     """Get sessions from the last N hours"""
     if not session_tracker:
         raise HTTPException(status_code=503, detail="Session tracker not initialized")
 
-    sessions = session_tracker.get_recent_sessions(hours=hours)
+    sessions = await session_tracker.get_recent_sessions(db, hours=hours)
     return {
         "sessions": [s.to_dict() for s in sessions],
         "count": len(sessions),
@@ -217,12 +250,12 @@ async def get_recent_sessions(hours: int = 24):
 
 
 @app.get("/api/sessions/{session_id}")
-async def get_session(session_id: str):
+async def get_session(session_id: str, db: AsyncSession = Depends(get_db)):
     """Get details of a specific session"""
     if not session_tracker:
         raise HTTPException(status_code=503, detail="Session tracker not initialized")
 
-    session = session_tracker.get_session(session_id)
+    session = await session_tracker.get_session(db, session_id)
     if not session:
         raise HTTPException(status_code=404, detail=f"Session not found: {session_id}")
 
@@ -230,13 +263,14 @@ async def get_session(session_id: str):
 
 
 @app.post("/api/sessions/start")
-async def session_start(req: SessionStartRequest):
+async def session_start(req: SessionStartRequest, db: AsyncSession = Depends(get_db)):
     """Handle session start event from hooks"""
     if not session_tracker:
         raise HTTPException(status_code=503, detail="Session tracker not initialized")
 
     # Start tracking session
-    session = session_tracker.start_session(
+    session = await session_tracker.start_session(
+        db=db,
         session_id=req.session_id,
         project_path=req.project_path,
         project_name=req.project_name,
@@ -251,14 +285,14 @@ async def session_start(req: SessionStartRequest):
 
 
 @app.post("/api/sessions/end")
-async def session_end(req: SessionEndRequest):
+async def session_end(req: SessionEndRequest, db: AsyncSession = Depends(get_db)):
     """Handle session end event from hooks"""
     if not session_tracker:
         raise HTTPException(status_code=503, detail="Session tracker not initialized")
 
-    session_tracker.end_session(req.session_id)
+    await session_tracker.end_session(db, req.session_id)
 
-    session = session_tracker.get_session(req.session_id)
+    session = await session_tracker.get_session(db, req.session_id)
     session_data = session.to_dict() if session else {"session_id": req.session_id}
 
     # Broadcast to WebSocket clients
@@ -297,13 +331,18 @@ async def get_settings_hierarchy(project_path: Optional[str] = None):
 
 # Monitoring endpoints
 @app.post("/api/monitoring/tool-use")
-async def tool_use(req: ToolUseRequest):
+async def tool_use(req: ToolUseRequest, db: AsyncSession = Depends(get_db)):
     """Handle tool execution event from hooks"""
     if not session_tracker:
         return {"status": "ok", "note": "Session tracker not initialized"}
 
-    # Update session activity
-    session_tracker.record_tool_execution(req.session_id)
+    # Record tool execution in database
+    await session_tracker.record_tool_execution(
+        db=db,
+        session_id=req.session_id,
+        tool_name=req.tool_name,
+        parameters=req.parameters
+    )
 
     # Broadcast to WebSocket clients
     event_data = {
@@ -327,12 +366,12 @@ async def settings_snapshot(data: Dict[str, Any]):
 
 
 @app.get("/api/monitoring/stats")
-async def get_stats():
+async def get_stats(db: AsyncSession = Depends(get_db)):
     """Get overall monitoring statistics"""
     if not session_tracker:
         raise HTTPException(status_code=503, detail="Session tracker not initialized")
 
-    return session_tracker.get_stats()
+    return await session_tracker.get_stats(db)
 
 
 # WebSocket endpoint
