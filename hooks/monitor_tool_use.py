@@ -50,6 +50,7 @@ def main():
         hook_event_name = input_data.get('hook_event_name', '')  # 'PreToolUse' or 'PostToolUse'
         tool_name = input_data.get('tool_name', '')              # e.g., 'Bash', 'Write', 'Read'
         tool_input = input_data.get('tool_input', {})            # Tool-specific parameters dict
+        tool_response = input_data.get('tool_response', {})      # Tool result (PostToolUse only)
         session_id = input_data.get('session_id', '')
         cwd = input_data.get('cwd', '')
 
@@ -63,6 +64,7 @@ def main():
             'event_type': hook_event_name,
             'tool_name': tool_name,
             'parameters': tool_input,
+            'result': tool_response if hook_event_name == 'PostToolUse' else None,
             'working_directory': cwd,
             'timestamp': datetime.now(timezone.utc).isoformat()
         }

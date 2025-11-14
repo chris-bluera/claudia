@@ -12,6 +12,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
 from sqlalchemy.orm import relationship
+from pgvector.sqlalchemy import Vector
 
 from .database import Base
 
@@ -38,6 +39,8 @@ class SessionModel(Base):
     # Relationships
     tool_executions = relationship('ToolExecutionModel', back_populates='session', cascade='all, delete-orphan')
     settings_snapshots = relationship('SettingsSnapshotModel', back_populates='session', cascade='all, delete-orphan')
+    user_prompts = relationship('UserPromptModel', back_populates='session', cascade='all, delete-orphan')
+    assistant_messages = relationship('AssistantMessageModel', back_populates='session', cascade='all, delete-orphan')
 
     def to_dict(self) -> dict:
         """Convert to dictionary for API responses"""
@@ -138,4 +141,66 @@ class SettingsSnapshotModel(Base):
             'hierarchy_level': self.hierarchy_level,
             'file_path': self.file_path,
             'captured_at': self.captured_at.isoformat() if self.captured_at else None,
+        }
+
+
+class UserPromptModel(Base):
+    """
+    User prompts captured from UserPromptSubmit hook
+    Maps to: claudia.user_prompts
+    """
+    __tablename__ = 'user_prompts'
+    __table_args__ = {'schema': 'claudia'}
+
+    id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    session_id = Column(PG_UUID(as_uuid=True), ForeignKey('claudia.claude_sessions.id', ondelete='CASCADE'), nullable=False, index=True)
+    prompt_text = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False, index=True)
+    embedding = Column(Vector(1536), nullable=True)  # OpenAI text-embedding-3-small dimensions
+    prompt_metadata = Column('metadata', JSONB, default={}, nullable=False)
+
+    # Relationships
+    session = relationship('SessionModel', back_populates='user_prompts')
+
+    def to_dict(self) -> dict:
+        """Convert to dictionary for API responses"""
+        return {
+            'id': str(self.id),
+            'session_id': str(self.session_id),
+            'prompt_text': self.prompt_text,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'embedding': self.embedding.tolist() if self.embedding is not None else None,
+            'metadata': self.prompt_metadata,
+        }
+
+
+class AssistantMessageModel(Base):
+    """
+    Assistant messages captured from Stop hook
+    Maps to: claudia.assistant_messages
+    """
+    __tablename__ = 'assistant_messages'
+    __table_args__ = {'schema': 'claudia'}
+
+    id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    session_id = Column(PG_UUID(as_uuid=True), ForeignKey('claudia.claude_sessions.id', ondelete='CASCADE'), nullable=False, index=True)
+    message_text = Column(Text, nullable=False)
+    conversation_turn = Column(Integer, default=0, nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False, index=True)
+    embedding = Column(Vector(1536), nullable=True)  # OpenAI text-embedding-3-small dimensions
+    message_metadata = Column('metadata', JSONB, default={}, nullable=False)
+
+    # Relationships
+    session = relationship('SessionModel', back_populates='assistant_messages')
+
+    def to_dict(self) -> dict:
+        """Convert to dictionary for API responses"""
+        return {
+            'id': str(self.id),
+            'session_id': str(self.session_id),
+            'message_text': self.message_text,
+            'conversation_turn': self.conversation_turn,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'embedding': self.embedding.tolist() if self.embedding is not None else None,
+            'metadata': self.message_metadata,
         }

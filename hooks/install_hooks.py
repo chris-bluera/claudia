@@ -83,7 +83,24 @@ def get_hook_config():
                 "hooks": [
                     {
                         "type": "command",
+                        "command": f"python3 {hooks_dir}/capture_prompts.py",
+                        "timeout": 5
+                    },
+                    {
+                        "type": "command",
                         "command": f"python3 {hooks_dir}/settings_watcher.py",
+                        "timeout": 5
+                    }
+                ]
+            }
+        ],
+        "Stop": [
+            {
+                "matcher": "*",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": f"python3 {hooks_dir}/capture_assistant_messages.py",
                         "timeout": 5
                     }
                 ]

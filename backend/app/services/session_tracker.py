@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from loguru import logger
 
-from app.db.models import SessionModel, ToolExecutionModel
+from app.db.models import SessionModel, ToolExecutionModel, UserPromptModel, AssistantMessageModel
 from app.constants import SESSION_TIMEOUT_MINUTES
 from app.exceptions import SessionNotFoundException
 
@@ -118,6 +118,72 @@ class SessionTracker:
         await db.flush()
 
         return tool_execution
+
+    async def capture_user_prompt(
+        self,
+        db: AsyncSession,
+        session_id: str,
+        prompt_text: str,
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> UserPromptModel:
+        """Capture a user prompt for later vectorization"""
+
+        # Find session
+        stmt = select(SessionModel).where(SessionModel.session_id == session_id)
+        result = await db.execute(stmt)
+        session = result.scalar_one_or_none()
+
+        if not session:
+            logger.error(f"Cannot capture prompt for unknown session: {session_id}")
+            raise SessionNotFoundException(session_id)
+
+        # Create user prompt record
+        user_prompt = UserPromptModel(
+            session_id=session.id,
+            prompt_text=prompt_text,
+            prompt_metadata=metadata or {},
+            created_at=datetime.now(timezone.utc)
+        )
+
+        db.add(user_prompt)
+        await db.flush()
+
+        logger.info(f"Captured user prompt for session {session_id} ({len(prompt_text)} chars)")
+        return user_prompt
+
+    async def capture_assistant_message(
+        self,
+        db: AsyncSession,
+        session_id: str,
+        message_text: str,
+        conversation_turn: int = 0,
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> AssistantMessageModel:
+        """Capture an assistant message for later vectorization"""
+
+        # Find session
+        stmt = select(SessionModel).where(SessionModel.session_id == session_id)
+        result = await db.execute(stmt)
+        session = result.scalar_one_or_none()
+
+        if not session:
+            logger.error(f"Cannot capture message for unknown session: {session_id}")
+            raise SessionNotFoundException(session_id)
+
+        # Create assistant message record
+        assistant_message = AssistantMessageModel(
+            session_id=session.id,
+            message_text=message_text,
+            conversation_turn=conversation_turn,
+            message_metadata=metadata or {},
+            created_at=datetime.now(timezone.utc)
+        )
+
+        db.add(assistant_message)
+        await db.flush()
+
+        logger.info(f"Captured assistant message for session {session_id} (turn {conversation_turn}, {len(message_text)} chars)")
+        return assistant_message
 
     async def get_session(self, db: AsyncSession, session_id: str) -> Optional[SessionModel]:
         """Get a specific session by session_id"""

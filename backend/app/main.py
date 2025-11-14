@@ -64,7 +64,21 @@ class ToolUseRequest(BaseModel):
     event_type: Optional[str] = None
     tool_name: str
     parameters: Optional[Dict[str, Any]] = None
+    result: Optional[Dict[str, Any]] = None
     working_directory: Optional[str] = None
+    timestamp: Optional[str] = None
+
+
+class PromptCaptureRequest(BaseModel):
+    session_id: str
+    prompt_text: str
+    timestamp: Optional[str] = None
+
+
+class MessageCaptureRequest(BaseModel):
+    session_id: str
+    message_text: str
+    conversation_turn: int = 0
     timestamp: Optional[str] = None
 
 
@@ -391,7 +405,8 @@ async def tool_use(req: ToolUseRequest, db: AsyncSession = Depends(get_db)):
             db=db,
             session_id=req.session_id,
             tool_name=req.tool_name,
-            parameters=req.parameters
+            parameters=req.parameters,
+            result=req.result
         )
 
         # Broadcast to WebSocket clients
@@ -404,6 +419,43 @@ async def tool_use(req: ToolUseRequest, db: AsyncSession = Depends(get_db)):
         await broadcast_event(EVENT_TOOL_EXECUTION, event_data)
 
         return {"status": "recorded"}
+    except SessionNotFoundException:
+        raise session_not_found_error(req.session_id)
+
+
+@app.post("/api/prompts/capture")
+async def capture_prompt(req: PromptCaptureRequest, db: AsyncSession = Depends(get_db)):
+    """Capture user prompt from UserPromptSubmit hook"""
+    if not session_tracker:
+        return {"status": "ok", "note": "Session tracker not initialized"}
+
+    try:
+        await session_tracker.capture_user_prompt(
+            db=db,
+            session_id=req.session_id,
+            prompt_text=req.prompt_text
+        )
+
+        return {"status": "captured", "session_id": req.session_id}
+    except SessionNotFoundException:
+        raise session_not_found_error(req.session_id)
+
+
+@app.post("/api/messages/capture")
+async def capture_message(req: MessageCaptureRequest, db: AsyncSession = Depends(get_db)):
+    """Capture assistant message from Stop hook"""
+    if not session_tracker:
+        return {"status": "ok", "note": "Session tracker not initialized"}
+
+    try:
+        await session_tracker.capture_assistant_message(
+            db=db,
+            session_id=req.session_id,
+            message_text=req.message_text,
+            conversation_turn=req.conversation_turn
+        )
+
+        return {"status": "captured", "session_id": req.session_id, "turn": req.conversation_turn}
     except SessionNotFoundException:
         raise session_not_found_error(req.session_id)
 
