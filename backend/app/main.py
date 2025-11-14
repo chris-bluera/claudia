@@ -345,11 +345,8 @@ async def websocket_endpoint(websocket: WebSocket):
 
     try:
         while True:
-            # Keep connection alive by receiving (and ignoring) ping messages
-            data = await websocket.receive_text()
-            # Client can send "ping" to keep connection alive
-            if data == "ping":
-                await websocket.send_text("pong")
+            # Keep connection alive (required by FastAPI/Starlette)
+            await websocket.receive_text()
 
     except WebSocketDisconnect:
         logger.info("WebSocket client disconnected")

@@ -7,13 +7,11 @@ type EventCallback = (event: WebSocketEvent) => void
 
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/api/monitoring/ws'
 const RECONNECT_DELAY = 3000
-const PING_INTERVAL = 30000
 
 export class WebSocketClient {
   private ws: WebSocket | null = null
   private callbacks: Set<EventCallback> = new Set()
   private reconnectTimer: number | null = null
-  private pingTimer: number | null = null
   private url: string
   private shouldReconnect = true
 
@@ -32,17 +30,11 @@ export class WebSocketClient {
 
       this.ws.onopen = () => {
         console.log('WebSocket connected')
-        this.startPing()
       }
 
       this.ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data)
-
-          // Ignore pong messages
-          if (data === 'pong') {
-            return
-          }
 
           // Broadcast to all callbacks
           this.callbacks.forEach(callback => {
@@ -63,7 +55,6 @@ export class WebSocketClient {
 
       this.ws.onclose = () => {
         console.log('WebSocket disconnected')
-        this.stopPing()
 
         if (this.shouldReconnect) {
           this.scheduleReconnect()
@@ -79,7 +70,6 @@ export class WebSocketClient {
 
   disconnect(): void {
     this.shouldReconnect = false
-    this.stopPing()
 
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer)
@@ -98,21 +88,6 @@ export class WebSocketClient {
     // Return unsubscribe function
     return () => {
       this.callbacks.delete(callback)
-    }
-  }
-
-  private startPing(): void {
-    this.pingTimer = window.setInterval(() => {
-      if (this.ws?.readyState === WebSocket.OPEN) {
-        this.ws.send('ping')
-      }
-    }, PING_INTERVAL)
-  }
-
-  private stopPing(): void {
-    if (this.pingTimer) {
-      clearInterval(this.pingTimer)
-      this.pingTimer = null
     }
   }
 
