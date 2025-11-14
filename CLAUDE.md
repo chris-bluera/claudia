@@ -88,6 +88,12 @@ Monitor the backend logs to see hook events coming through.
   - Base URL: `https://openrouter.ai/api/v1`
   - Allows flexibility to switch providers without code changes
 
+- **Settings Monitoring**: Two-tier approach for accuracy
+  - File-based settings from Claude Code's configuration hierarchy
+  - Runtime configuration captured via hooks (includes CLI overrides)
+  - Merged to show actual effective configuration per session
+  - Handles cases where CLI args override file settings (e.g., `claude --model opus`)
+
 ### Development Tips
 
 - Keep backend endpoints RESTful and well-documented (Swagger)

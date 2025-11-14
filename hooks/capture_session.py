@@ -6,7 +6,7 @@ Captures session start/end events.
 import json
 import sys
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 import urllib.request
 
 CLAUDIA_API_URL = os.getenv('CLAUDIA_API_URL', 'http://localhost:8000')
@@ -48,6 +48,21 @@ def main():
         project_path = cwd
         project_name = os.path.basename(project_path)
 
+        # Capture runtime configuration
+        # This includes settings we can detect from the runtime environment
+        runtime_config = {
+            'permission_mode': permission_mode,
+            # Check for Claude Code environment variables
+            'env': {
+                'CLAUDE_CODE_REMOTE': os.getenv('CLAUDE_CODE_REMOTE'),
+                'CLAUDE_PROJECT_DIR': os.getenv('CLAUDE_PROJECT_DIR'),
+                # Add other known Claude Code env vars
+            }
+        }
+
+        # Remove None values
+        runtime_config['env'] = {k: v for k, v in runtime_config['env'].items() if v is not None}
+
         # Prepare session data
         session_data = {
             'session_id': session_id,
@@ -56,7 +71,8 @@ def main():
             'project_name': project_name,
             'transcript_path': transcript_path,
             'permission_mode': permission_mode,
-            'timestamp': datetime.utcnow().isoformat()
+            'runtime_config': runtime_config,
+            'timestamp': datetime.now(timezone.utc).isoformat()
         }
 
         # Send appropriate event

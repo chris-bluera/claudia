@@ -6,7 +6,7 @@ Sends tool execution data to Claudia backend.
 import json
 import sys
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 import urllib.request
 import urllib.error
 
@@ -54,7 +54,7 @@ def main():
             'tool_name': tool_name,
             'parameters': parameters,
             'working_directory': cwd,
-            'timestamp': datetime.utcnow().isoformat()
+            'timestamp': datetime.now(timezone.utc).isoformat()
         }
 
         # Send to Claudia backend
