@@ -2,7 +2,7 @@
 Configuration management for Claudia backend
 """
 from pydantic_settings import BaseSettings
-from pydantic import Field
+from pydantic import Field, field_validator
 from pathlib import Path
 from typing import Optional
 import os
@@ -45,13 +45,23 @@ class Settings(BaseSettings):
         description="OpenRouter API base URL"
     )
 
+    @field_validator('claude_projects_path', 'claude_settings_path', mode='before')
+    @classmethod
+    def expand_path(cls, v):
+        """Expand user home directory in paths"""
+        if isinstance(v, str):
+            return Path(v).expanduser()
+        elif isinstance(v, Path):
+            return v.expanduser()
+        return v
+
     class Config:
         env_file = "../.env"
         env_file_encoding = "utf-8"
         case_sensitive = False
+        extra = "ignore"  # Ignore extra fields (like postgres_*, vite_* that aren't used by backend)
 
         # Allow reading from environment variables
-        # Variables will be read as CLAUDIA_<field_name>
         env_prefix = ""
 
 # Create global settings instance

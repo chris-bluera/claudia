@@ -13,13 +13,46 @@ These Python scripts integrate with Claude Code's hook system to monitor activit
 Run the installation script to set up hooks:
 
 ```bash
-python install_hooks.py
+python3 install_hooks.py
 ```
 
 This will:
-1. Make hook scripts executable
-2. Update your Claude Code settings to register the hooks
-3. Verify the Claudia backend is accessible
+1. Check if Claudia backend is running
+2. Install hooks at **user level** (`~/.claude/settings.json`)
+3. Make hook scripts executable (Unix systems)
+4. Preserve any existing hooks in your settings
+
+### Installation Architecture
+
+Hooks are installed **globally at the user level** for these reasons:
+
+**✅ Correct Approach (Current):**
+- Hooks in `~/.claude/settings.json` → monitors ALL Claude Code sessions
+- Unique `session_id` for each session → no duplicate events
+- Supports multiple concurrent sessions across different projects
+- Works seamlessly when Claudia monitors itself (dogfooding)
+
+**❌ Incorrect Approach (Avoided):**
+- Installing hooks at project level would require per-project setup
+- Multiple installations at different levels cause duplicate events
+- No benefit to project-specific hook installation for monitoring
+
+### Multiple Concurrent Sessions
+
+Claudia is designed to handle multiple Claude Code sessions simultaneously:
+
+```
+Session A (project-foo) → Unique session_id=abc123
+Session B (project-bar) → Unique session_id=def456
+Session C (claudia)     → Unique session_id=ghi789
+```
+
+All sessions are tracked independently in the dashboard:
+- **Sessions Panel**: Shows all active sessions with their own durations and tool counts
+- **Activity Feed**: Streams events from all sessions with session identification
+- **Settings Panel**: Can display settings for any active session
+
+Claude Code's hook system is **additive** - hooks from user, project, and local levels all execute in parallel. By keeping Claudia hooks at user level only, we ensure consistent monitoring without duplication.
 
 ## Configuration
 

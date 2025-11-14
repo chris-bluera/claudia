@@ -23,12 +23,48 @@ cd backend && uv run uvicorn app.main:app --reload --port 8000
 
 # Run frontend (separate terminal)
 cd frontend && npm run dev
+
+# Install Claudia monitoring hooks (one-time setup)
+cd hooks && python3 install_hooks.py
 ```
 
 Access:
 - Frontend: http://localhost:5173
 - API Docs: http://localhost:8000/api/docs
 - WebSocket: ws://localhost:8000/api/monitoring/ws
+
+## Hook Installation
+
+Claudia monitors Claude Code through hooks installed at the **user level** (`~/.claude/settings.json`). This architecture enables:
+
+✅ **Universal Monitoring**: All Claude Code sessions across all projects are monitored
+✅ **Multiple Sessions**: Concurrent sessions in different projects tracked independently
+✅ **Dogfooding**: Claudia monitors itself when working on the Claudia codebase
+✅ **No Duplicates**: Each session has a unique `session_id`, preventing double events
+
+### Why Global Installation?
+
+Claude Code's hook system is **additive** - hooks from multiple sources (managed, user, project, local) all execute in parallel. Installing hooks at the user level ensures:
+
+- **Single Source**: Hooks defined once, apply everywhere
+- **Session Isolation**: Each session tracked by unique ID
+- **Multi-Project Support**: Work on multiple repos simultaneously without conflicts
+
+### Important: Avoid Duplicate Installations
+
+⚠️ **DO NOT** install hooks at multiple levels for the same project. This would cause duplicate events:
+
+```
+❌ BAD - Causes duplicates:
+~/.claude/settings.json           ← Claudia hooks
+yourproject/.claude/settings.json ← Same hooks again = 2x events!
+
+✅ GOOD - Current setup:
+~/.claude/settings.json           ← Claudia hooks (user level only)
+yourproject/.claude/settings.json ← Your project-specific hooks (if any)
+```
+
+Claudia's hooks are specifically designed for user-level installation and will peacefully coexist with any project-specific hooks you may have.
 
 ## Architecture
 

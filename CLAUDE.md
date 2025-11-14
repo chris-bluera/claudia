@@ -35,19 +35,39 @@ claudia/                    # Our project root
 
 ### Current Implementation Status
 
-✅ **Completed:**
-- Project structure and basic setup
-- FastAPI backend with WebSocket support
-- Vue.js frontend with design tokens
-- PostgreSQL + pgvector schema
-- Monitoring hooks (Python, cross-platform)
-- Developer documentation
+✅ **Completed - MVP Ready:**
+- ✅ Backend services (FileMonitor, SettingsAggregator, SessionTracker)
+- ✅ FastAPI with WebSocket broadcasting
+- ✅ Vue.js frontend with design tokens (no hardcoded styles)
+- ✅ PostgreSQL + pgvector schema
+- ✅ Monitoring hooks (Python, cross-platform)
+- ✅ TypeScript types with `unknown` instead of `any`
+- ✅ Dashboard with SessionsPanel, ActivityFeed, SettingsPanel
+- ✅ Pinia store with WebSocket integration
+- ✅ Hooks installed at user level (`~/.claude/settings.json`)
 
-🚧 **Next Steps:**
-1. Implement file watchers in backend
-2. Create frontend dashboard components
-3. Wire up WebSocket real-time updates
-4. Test hook integration with actual Claude Code
+🚀 **Ready for Dogfooding:**
+- Backend monitoring `~/.claude/projects` for all sessions
+- Frontend dashboard showing real-time updates
+- Hooks capturing session events, tool usage, settings changes
+
+### Hook Installation Architecture
+
+**IMPORTANT:** Hooks are installed **globally at user level** (`~/.claude/settings.json`), NOT at project level.
+
+**Why Global?**
+- Claude Code's hook system is **additive** - hooks from all levels (managed/user/project/local) execute in parallel
+- Installing at user level monitors ALL Claude Code sessions across ALL projects
+- Each session has unique `session_id` → no duplicate events
+- Supports multiple concurrent sessions in different projects
+- Works when Claudia monitors itself (dogfooding)
+
+**Avoid Duplicates:**
+- ✅ User level only: `~/.claude/settings.json` (current approach)
+- ❌ Never install at project level: `.claude/settings.json` (would cause duplicates)
+- ❌ Never install at both levels (2x events for every action!)
+
+The `.claude/settings.local.json` in this repo contains only permissions, NOT hooks.
 
 ### Running the Stack
 
@@ -61,8 +81,8 @@ cd backend && uv run uvicorn app.main:app --reload
 # Terminal 3: Frontend
 cd frontend && npm run dev
 
-# Terminal 4: Install hooks
-cd hooks && python install_hooks.py
+# One-time: Install hooks (if not already done)
+cd hooks && python3 install_hooks.py
 ```
 
 ### Testing Integration
