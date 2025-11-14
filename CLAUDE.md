@@ -1,6 +1,9 @@
 # Claudia Development Context
 
-This file provides context for Claude Code when working on the Claudia project.
+This file provides project-level context for Claude Code when working on the Claudia project.
+
+**For backend-specific conventions, see:** `backend/CLAUDE.md`
+**For frontend-specific conventions, see:** `frontend/CLAUDE.md`
 
 ## Project Overview
 
@@ -10,7 +13,46 @@ Claudia is a companion GUI for Claude Code that provides:
 - Tool execution tracking
 - Future: pgvector-powered semantic search and context augmentation
 
+## Core Development Principles
+
+These principles apply to **the entire codebase** (frontend and backend):
+
+### 1. This App Is Expected to Work
+
+**Errors are the default response to unexpected conditions:**
+- If things aren't working as expected → that's an ERROR condition
+- Warnings are almost never used (only for things that don't impact functionality)
+- Backend: Throw exceptions for errors
+- Frontend: Show error states clearly (more lenient for UX, but still errors)
+
+### 2. No Fallbacks Unless Explicitly Stated
+
+**Critical: Claude models tend to add fallback code automatically. Resist this.**
+
+- ❌ Don't create automatic fallback logic
+- ❌ Don't add polling fallbacks for WebSocket failures
+- ❌ Don't add degraded modes automatically
+- ✅ If something fails, show error state clearly
+- ✅ Let user decide whether to retry
+
+**Examples of what NOT to do:**
+- Auto-switching to polling when WebSocket fails
+- Silent fallback to alternative implementations
+- Degraded modes that hide failures from user
+
+### 3. No Hardcoded Styles
+
+- Frontend: All styles use design tokens from `frontend/src/assets/tokens.css`
+- Never hardcode colors, spacing, fonts, shadows, etc.
+
+### 4. TypeScript Type Safety
+
+- Use `unknown` instead of `any` for better type safety
+- Properly type all interfaces and API responses
+
 ## Key Development Considerations
+
+> **Note to Claude Code:** When adding implementation details, put backend-specific items in `backend/CLAUDE.md` and frontend-specific items in `frontend/CLAUDE.md`. Keep project-level status and cross-cutting concerns here.
 
 ### Naming Conventions
 
