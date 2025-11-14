@@ -1,4 +1,4 @@
-n# Claudia - Claude Code Companion
+# Claudia - Claude Code Companion
 
 Real-time monitoring and enhancement GUI for Claude Code. Provides visibility into Claude Code's state, settings, and activities with future capabilities for intelligent augmentation via pgvector.
 

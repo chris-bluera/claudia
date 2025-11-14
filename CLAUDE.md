@@ -29,6 +29,8 @@ Claudia is a companion GUI for Claude Code that provides:
 - Tool execution tracking
 - Future: pgvector-powered semantic search and context augmentation
 
+**For setup and running instructions, see:** @README.md
+
 ## Core Development Principles
 
 These principles apply to **the entire codebase** (frontend and backend):
@@ -126,31 +128,6 @@ claudia/                    # Our project root
 - ❌ Never install at both levels (2x events for every action!)
 
 The `.claude/settings.local.json` in this repo contains only permissions, NOT hooks.
-
-### Running the Stack
-
-```bash
-# Terminal 1: Database
-docker-compose up -d
-
-# Terminal 2: Backend
-cd backend && uv run uvicorn app.main:app --reload
-
-# Terminal 3: Frontend
-cd frontend && npm run dev
-
-# One-time: Install hooks (if not already done)
-cd hooks && python3 install_hooks.py
-```
-
-### Testing Integration
-
-Start a Claude Code session in this project:
-```bash
-claude "Help me enhance Claudia"
-```
-
-Monitor the backend logs to see hook events coming through.
 
 ### Future Enhancements
 

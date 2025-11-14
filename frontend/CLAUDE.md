@@ -279,53 +279,7 @@ export const useWebSocketStore = defineStore('websocket', () => {
 - Custom components using design tokens
 - No UI framework dependencies (building custom for lightweight and control)
 
-## Project Structure
-
-```
-frontend/
-├── src/
-│   ├── main.ts              # App entry point
-│   ├── App.vue              # Root component
-│   ├── assets/
-│   │   └── tokens.css       # Design tokens
-│   ├── components/
-│   │   ├── SessionsPanel.vue
-│   │   ├── ActivityFeed.vue
-│   │   └── SettingsPanel.vue
-│   ├── stores/
-│   │   ├── sessions.ts      # Session state management
-│   │   └── websocket.ts     # WebSocket connection
-│   ├── types/
-│   │   └── index.ts         # TypeScript type definitions
-│   └── router/
-│       └── index.ts         # Vue Router configuration
-├── public/                  # Static assets
-├── vite.config.ts          # Vite configuration
-├── tsconfig.json           # TypeScript configuration
-└── CLAUDE.md               # This file
-```
-
-## Development Workflow
-
-### Starting the Frontend
-
-```bash
-cd frontend
-npm run dev
-```
-
-### Building for Production
-
-```bash
-npm run build
-npm run preview  # Preview production build
-```
-
-### Type Checking
-
-```bash
-npm run type-check
-```
+**For setup, running, and testing instructions, see:** @../README.md
 
 ## Common Patterns
 
