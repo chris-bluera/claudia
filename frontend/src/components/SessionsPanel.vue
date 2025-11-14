@@ -43,6 +43,7 @@ defineProps<{
 }>()
 
 function formatDuration(seconds: number): string {
+  if (seconds === undefined || seconds === null || isNaN(seconds)) return '—'
   if (seconds < 60) return `${Math.floor(seconds)}s`
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m`
   const hours = Math.floor(seconds / 3600)

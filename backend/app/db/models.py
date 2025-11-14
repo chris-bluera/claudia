@@ -3,7 +3,7 @@ SQLAlchemy ORM models for Claudia database
 
 Maps to schema in database/init.sql
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID, uuid4
 from sqlalchemy import (
@@ -41,6 +41,25 @@ class SessionModel(Base):
 
     def to_dict(self) -> dict:
         """Convert to dictionary for API responses"""
+        # Calculate duration in seconds
+        end_time = self.ended_at or datetime.now(timezone.utc)
+        duration_seconds = (end_time - self.started_at).total_seconds() if self.started_at else 0
+
+        # Get tool count
+        tool_count = len(self.tool_executions) if self.tool_executions else 0
+
+        # Get last activity (latest tool execution or session start)
+        last_activity = self.started_at
+        if self.tool_executions:
+            latest_tool = max(self.tool_executions, key=lambda t: t.executed_at or datetime.min.replace(tzinfo=timezone.utc), default=None)
+            if latest_tool and latest_tool.executed_at:
+                last_activity = latest_tool.executed_at
+
+        # Extract fields from metadata
+        metadata = self.session_metadata or {}
+        transcript_path = metadata.get('transcript_path')
+        runtime_config = metadata.get('permission_mode') or metadata
+
         return {
             'id': str(self.id),
             'session_id': self.session_id,
@@ -50,6 +69,11 @@ class SessionModel(Base):
             'ended_at': self.ended_at.isoformat() if self.ended_at else None,
             'is_active': self.is_active,
             'metadata': self.session_metadata,
+            'duration_seconds': duration_seconds,
+            'tool_count': tool_count,
+            'last_activity': last_activity.isoformat() if last_activity else None,
+            'transcript_path': transcript_path,
+            'runtime_config': runtime_config,
         }
 
 

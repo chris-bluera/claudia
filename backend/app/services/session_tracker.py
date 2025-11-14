@@ -7,6 +7,7 @@ from typing import List, Optional, Any, Dict
 import logging
 from sqlalchemy import select, update, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.db.models import SessionModel, ToolExecutionModel
 from app.constants import SESSION_TIMEOUT_MINUTES
@@ -116,7 +117,9 @@ class SessionTracker:
 
     async def get_session(self, db: AsyncSession, session_id: str) -> Optional[SessionModel]:
         """Get a specific session by session_id"""
-        stmt = select(SessionModel).where(SessionModel.session_id == session_id)
+        stmt = select(SessionModel).where(
+            SessionModel.session_id == session_id
+        ).options(selectinload(SessionModel.tool_executions))
         result = await db.execute(stmt)
         return result.scalar_one_or_none()
 
@@ -127,7 +130,7 @@ class SessionTracker:
 
         stmt = select(SessionModel).where(
             SessionModel.is_active == True
-        ).order_by(SessionModel.started_at.desc())
+        ).options(selectinload(SessionModel.tool_executions)).order_by(SessionModel.started_at.desc())
 
         result = await db.execute(stmt)
         return list(result.scalars().all())
@@ -142,7 +145,7 @@ class SessionTracker:
 
         stmt = select(SessionModel).where(
             SessionModel.started_at >= cutoff
-        ).order_by(SessionModel.started_at.desc())
+        ).options(selectinload(SessionModel.tool_executions)).order_by(SessionModel.started_at.desc())
 
         result = await db.execute(stmt)
         return list(result.scalars().all())
@@ -155,7 +158,7 @@ class SessionTracker:
         """Get all sessions for a specific project"""
         stmt = select(SessionModel).where(
             SessionModel.project_path == project_path
-        ).order_by(SessionModel.started_at.desc())
+        ).options(selectinload(SessionModel.tool_executions)).order_by(SessionModel.started_at.desc())
 
         result = await db.execute(stmt)
         return list(result.scalars().all())
