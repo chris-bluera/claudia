@@ -1,36 +1,48 @@
-# Claudia - Claude Code Companion
+n# Claudia - Claude Code Companion
 
 Real-time monitoring and enhancement GUI for Claude Code. Provides visibility into Claude Code's state, settings, and activities with future capabilities for intelligent augmentation via pgvector.
 
 ## Quick Start
+
+### Recommended: Use Development Runner
 
 ```bash
 # Clone repository
 git clone git@github.com:chris-bluera/claudia.git
 cd claudia
 
-# Install backend dependencies
+# Install dependencies
 cd backend && uv sync
-
-# Install frontend dependencies
 cd ../frontend && npm install
+cd ..
 
-# Start PostgreSQL (requires Docker)
-docker-compose up -d
+# Start all services (PostgreSQL, backend, frontend)
+python3 dev.py
 
-# Run backend (separate terminal)
-cd backend && uv run uvicorn app.main:app --reload --port 8000
-
-# Run frontend (separate terminal)
-cd frontend && npm run dev
-
-# Install Claudia monitoring hooks (one-time setup)
+# Install Claudia monitoring hooks (one-time setup, separate terminal)
 cd hooks && python3 install_hooks.py
 ```
 
-Access:
+The `dev.py` runner starts all services with colored output and graceful shutdown (Ctrl+C).
+
+### Alternative: Manual Setup
+
+```bash
+# Start PostgreSQL (terminal 1)
+docker-compose up
+
+# Run backend (terminal 2)
+cd backend && uv run uvicorn app.main:app --reload
+
+# Run frontend (terminal 3)
+cd frontend && npm run dev
+```
+
+### Access Points
+
 - Frontend: http://localhost:5173
 - API Docs: http://localhost:8000/api/docs
+- Backend Logs: `backend/logs/app.log` and `backend/logs/errors.log`
 - WebSocket: ws://localhost:8000/api/monitoring/ws
 
 ## Hook Installation
@@ -122,14 +134,19 @@ Key variables:
 ### Current
 - Real-time Claude Code session monitoring
 - Settings hierarchy visualization
-- Tool execution tracking
-- Conversation transcript parsing
+- Tool execution tracking and metrics
+- PostgreSQL persistence with async SQLAlchemy
+- Loguru logging with file rotation and compression
+- Exception-based error handling
+- WebSocket broadcasting for real-time updates
+- Python monitoring hooks (cross-platform)
 
 ### Planned
+- pgvector integration for semantic search
+- Conversation indexing with embeddings (via OpenRouter)
+- Pattern recognition and workflow analytics
 - Hook management UI
-- Context augmentation via pgvector
-- Workflow automation
-- Pattern recognition
+- Context augmentation
 
 ## Testing
 

@@ -1,9 +1,25 @@
 # Claudia Development Context
 
-This file provides project-level context for Claude Code when working on the Claudia project.
+## About CLAUDE.md Files
 
-**For backend-specific conventions, see:** `backend/CLAUDE.md`
-**For frontend-specific conventions, see:** `frontend/CLAUDE.md`
+**What These Files Are:**
+- Automatically loaded context files for Claude Code (not human documentation)
+- Contain instructions, conventions, and project context
+- Loaded at session startup and on-demand when reading files in subdirectories
+
+**File Organization for This Project:**
+- `/CLAUDE.md` (this file) - Project-level overview, core principles, hook architecture
+- `/backend/CLAUDE.md` - Backend conventions (logging, errors, database)
+- `/frontend/CLAUDE.md` - Frontend conventions (Vue.js, TypeScript, design tokens)
+
+**Maintenance Guidelines:**
+- Be specific with instructions (clear rules > vague guidance)
+- Review and update as project evolves
+- Add backend-specific details to `backend/CLAUDE.md`
+- Add frontend-specific details to `frontend/CLAUDE.md`
+- Keep project-level status and cross-cutting concerns in this file
+
+---
 
 ## Project Overview
 
