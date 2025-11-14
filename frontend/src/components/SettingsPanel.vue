@@ -26,12 +26,18 @@
         <div class="section-label">Effective Settings</div>
         <div class="settings-list">
           <div
-            v-for="(value, key) in formatSettings(settings.effective)"
+            v-for="(value, key) in settings.effective"
             :key="key"
             class="setting-item"
           >
             <span class="setting-key">{{ key }}</span>
-            <span class="setting-value">{{ value }}</span>
+            <component
+              :is="getSettingComponent(key, value)"
+              v-if="isComplexSetting(key, value)"
+              :value="value"
+              class="setting-complex"
+            />
+            <span v-else class="setting-value">{{ formatSimpleValue(value) }}</span>
           </div>
         </div>
       </div>
@@ -40,12 +46,18 @@
         <div class="section-label">Runtime Overrides</div>
         <div class="settings-list">
           <div
-            v-for="(value, key) in formatSettings(settings.runtime)"
+            v-for="(value, key) in settings.runtime"
             :key="key"
             class="setting-item runtime"
           >
             <span class="setting-key">{{ key }}</span>
-            <span class="setting-value">{{ value }}</span>
+            <component
+              :is="getSettingComponent(key, value)"
+              v-if="isComplexSetting(key, value)"
+              :value="value"
+              class="setting-complex"
+            />
+            <span v-else class="setting-value">{{ formatSimpleValue(value) }}</span>
           </div>
         </div>
       </div>
@@ -55,27 +67,45 @@
 
 <script setup lang="ts">
 import type { SettingsSummary } from '@/types'
+import type { Component } from 'vue'
+import StatusLineDisplay from './settings/StatusLineDisplay.vue'
+import HooksDisplay from './settings/HooksDisplay.vue'
+import McpServerDisplay from './settings/McpServerDisplay.vue'
 
 defineProps<{
   settings: SettingsSummary | null
 }>()
 
-function formatSettings(settings: Record<string, unknown>): Record<string, string> {
-  const formatted: Record<string, string> = {}
-
-  for (const [key, value] of Object.entries(settings)) {
-    if (value === null || value === undefined) continue
-
-    if (typeof value === 'object') {
-      formatted[key] = JSON.stringify(value, null, 2)
-    } else if (typeof value === 'boolean') {
-      formatted[key] = value ? 'true' : 'false'
-    } else {
-      formatted[key] = String(value)
-    }
+function isComplexSetting(key: string, value: unknown): boolean {
+  if (typeof value !== 'object' || value === null) {
+    return false
   }
 
-  return formatted
+  // Check for known complex setting types
+  return key === 'statusLine' || key === 'hooks' || key === 'mcpServers'
+}
+
+function getSettingComponent(key: string, value: unknown): Component | null {
+  if (key === 'statusLine') {
+    return StatusLineDisplay
+  }
+  if (key === 'hooks') {
+    return HooksDisplay
+  }
+  if (key === 'mcpServers') {
+    return McpServerDisplay
+  }
+  return null
+}
+
+function formatSimpleValue(value: unknown): string {
+  if (value === null || value === undefined) {
+    return ''
+  }
+  if (typeof value === 'boolean') {
+    return value ? 'true' : 'false'
+  }
+  return String(value)
 }
 </script>
 
@@ -180,5 +210,10 @@ function formatSettings(settings: Record<string, unknown>): Record<string, strin
   font-family: var(--font-family-mono);
   word-break: break-all;
   white-space: pre-wrap;
+}
+
+.setting-complex {
+  width: 100%;
+  margin-top: var(--space-xs);
 }
 </style>
