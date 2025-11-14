@@ -2,6 +2,10 @@
 """
 Claudia monitoring hook for tracking Claude Code tool usage.
 Sends tool execution data to Claudia backend.
+
+Based on official Claude Code hook input structure from:
+- reference/claude-code/claude-code-official-repo/examples/hooks/bash_command_validator_example.py
+- reference/claude-code/claude-code-docs/06-reference/05-hooks-reference.md
 """
 import json
 import sys
@@ -14,7 +18,7 @@ import urllib.error
 CLAUDIA_API_URL = os.getenv('CLAUDIA_API_URL', 'http://localhost:8000')
 CLAUDIA_ENABLED = os.getenv('CLAUDIA_MONITORING', 'true').lower() == 'true'
 
-def send_to_claudia(endpoint: str, data: dict) -> bool:
+def send_to_claudia(endpoint: str, data: dict[str, object]) -> bool:
     """Send data to Claudia backend API"""
     if not CLAUDIA_ENABLED:
         return True
@@ -38,21 +42,27 @@ def main():
     """Process PreToolUse/PostToolUse hook events"""
     try:
         # Read input from Claude Code
-        input_data = json.loads(sys.stdin.read())
+        # Structure: { session_id, hook_event_name, tool_name, tool_input, cwd, ... }
+        raw_input = sys.stdin.read()
+        input_data: dict[str, object] = json.loads(raw_input)
 
-        # Extract relevant information
-        event_type = input_data.get('event', {}).get('type', '')
-        tool_name = input_data.get('event', {}).get('toolName', '')
-        parameters = input_data.get('event', {}).get('parameters', {})
+        # Extract hook input fields (per official Claude Code hook specification)
+        hook_event_name = input_data.get('hook_event_name', '')  # 'PreToolUse' or 'PostToolUse'
+        tool_name = input_data.get('tool_name', '')              # e.g., 'Bash', 'Write', 'Read'
+        tool_input = input_data.get('tool_input', {})            # Tool-specific parameters dict
         session_id = input_data.get('session_id', '')
         cwd = input_data.get('cwd', '')
 
+        # Ensure we have required fields
+        if not isinstance(hook_event_name, str) or not isinstance(session_id, str):
+            sys.exit(0)
+
         # Prepare monitoring data
-        monitoring_data = {
+        monitoring_data: dict[str, object] = {
             'session_id': session_id,
-            'event_type': event_type,
+            'event_type': hook_event_name,
             'tool_name': tool_name,
-            'parameters': parameters,
+            'parameters': tool_input,
             'working_directory': cwd,
             'timestamp': datetime.now(timezone.utc).isoformat()
         }
