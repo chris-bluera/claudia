@@ -16,7 +16,7 @@ import uuid
 
 from app.config import settings, ensure_directories
 from app.logging_config import setup_logging
-from app.services import FileMonitor, SettingsAggregator, SessionTracker
+from app.services import FileMonitor, SettingsAggregator, SessionTracker, get_search_service
 from app.db.database import get_db, init_db, close_db, AsyncSessionLocal
 from app.db.models import SessionModel
 from app.constants import (
@@ -80,6 +80,13 @@ class MessageCaptureRequest(BaseModel):
     message_text: str
     conversation_turn: int = 0
     timestamp: Optional[str] = None
+
+
+class SearchRequest(BaseModel):
+    query: str
+    limit: int = 10
+    similarity_threshold: float = 0.5
+    session_id: Optional[str] = None
 
 
 async def broadcast_event(event_type: str, data: Any):
@@ -476,6 +483,78 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=503, detail="Session tracker not initialized")
 
     return await session_tracker.get_stats(db)
+
+
+# Semantic search endpoints
+@app.post("/api/search/prompts")
+async def search_prompts(req: SearchRequest, db: AsyncSession = Depends(get_db)):
+    """
+    Search user prompts using semantic similarity
+
+    Returns prompts similar to the query, ordered by similarity score
+    """
+    search_service = get_search_service()
+
+    results = await search_service.search_prompts(
+        db=db,
+        query=req.query,
+        limit=req.limit,
+        similarity_threshold=req.similarity_threshold,
+        session_id=req.session_id
+    )
+
+    return {
+        "query": req.query,
+        "results": results,
+        "count": len(results)
+    }
+
+
+@app.post("/api/search/messages")
+async def search_messages(req: SearchRequest, db: AsyncSession = Depends(get_db)):
+    """
+    Search assistant messages using semantic similarity
+
+    Returns messages similar to the query, ordered by similarity score
+    """
+    search_service = get_search_service()
+
+    results = await search_service.search_messages(
+        db=db,
+        query=req.query,
+        limit=req.limit,
+        similarity_threshold=req.similarity_threshold,
+        session_id=req.session_id
+    )
+
+    return {
+        "query": req.query,
+        "results": results,
+        "count": len(results)
+    }
+
+
+@app.post("/api/search/conversations")
+async def search_conversations(req: SearchRequest, db: AsyncSession = Depends(get_db)):
+    """
+    Search both prompts and messages using semantic similarity
+
+    Returns unified results from both prompts and messages, ordered by similarity
+    """
+    search_service = get_search_service()
+
+    results = await search_service.search_conversations(
+        db=db,
+        query=req.query,
+        limit=req.limit,
+        similarity_threshold=req.similarity_threshold
+    )
+
+    return {
+        "query": req.query,
+        "results": results,
+        "count": len(results)
+    }
 
 
 # WebSocket endpoint

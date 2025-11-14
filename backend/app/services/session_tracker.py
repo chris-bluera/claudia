@@ -12,6 +12,7 @@ from loguru import logger
 from app.db.models import SessionModel, ToolExecutionModel, UserPromptModel, AssistantMessageModel
 from app.constants import SESSION_TIMEOUT_MINUTES
 from app.exceptions import SessionNotFoundException
+from app.services.embedding_service import get_embedding_service
 
 
 class SessionTracker:
@@ -19,6 +20,10 @@ class SessionTracker:
     Track Claude Code sessions using database as single source of truth
     All methods are async and require a database session
     """
+
+    def __init__(self):
+        """Initialize session tracker with embedding service"""
+        self.embedding_service = get_embedding_service()
 
     async def start_session(
         self,
@@ -137,18 +142,22 @@ class SessionTracker:
             logger.error(f"Cannot capture prompt for unknown session: {session_id}")
             raise SessionNotFoundException(session_id)
 
+        # Generate embedding for prompt
+        embedding = await self.embedding_service.generate_embedding(prompt_text)
+
         # Create user prompt record
         user_prompt = UserPromptModel(
             session_id=session.id,
             prompt_text=prompt_text,
             prompt_metadata=metadata or {},
+            embedding=embedding,
             created_at=datetime.now(timezone.utc)
         )
 
         db.add(user_prompt)
         await db.flush()
 
-        logger.info(f"Captured user prompt for session {session_id} ({len(prompt_text)} chars)")
+        logger.info(f"Captured user prompt for session {session_id} ({len(prompt_text)} chars, embedding: {embedding is not None})")
         return user_prompt
 
     async def capture_assistant_message(
@@ -170,19 +179,23 @@ class SessionTracker:
             logger.error(f"Cannot capture message for unknown session: {session_id}")
             raise SessionNotFoundException(session_id)
 
+        # Generate embedding for message
+        embedding = await self.embedding_service.generate_embedding(message_text)
+
         # Create assistant message record
         assistant_message = AssistantMessageModel(
             session_id=session.id,
             message_text=message_text,
             conversation_turn=conversation_turn,
             message_metadata=metadata or {},
+            embedding=embedding,
             created_at=datetime.now(timezone.utc)
         )
 
         db.add(assistant_message)
         await db.flush()
 
-        logger.info(f"Captured assistant message for session {session_id} (turn {conversation_turn}, {len(message_text)} chars)")
+        logger.info(f"Captured assistant message for session {session_id} (turn {conversation_turn}, {len(message_text)} chars, embedding: {embedding is not None})")
         return assistant_message
 
     async def get_session(self, db: AsyncSession, session_id: str) -> Optional[SessionModel]:
