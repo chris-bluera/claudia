@@ -6,6 +6,7 @@ from pydantic import Field, field_validator
 from pathlib import Path
 from typing import Optional
 import os
+from loguru import logger
 
 class Settings(BaseSettings):
     """Application settings with environment variable support"""
@@ -69,7 +70,14 @@ settings = Settings()
 
 # Ensure required directories exist
 def ensure_directories():
-    """Ensure required directories exist"""
+    """
+    Ensure required directories exist
+
+    Raises:
+        DirectoryNotFoundException: If a required directory does not exist
+    """
+    from app.exceptions import DirectoryNotFoundException
+
     directories = [
         settings.claude_projects_path,
         settings.claude_settings_path,
@@ -77,7 +85,5 @@ def ensure_directories():
 
     for directory in directories:
         if not directory.exists():
-            print(f"Warning: Directory {directory} does not exist")
-
-# Run on import
-ensure_directories()
+            logger.error(f"Required directory does not exist: {directory}")
+            raise DirectoryNotFoundException(str(directory))

@@ -14,7 +14,7 @@ import json
 import time
 import uuid
 
-from app.config import settings
+from app.config import settings, ensure_directories
 from app.logging_config import setup_logging
 from app.services import FileMonitor, SettingsAggregator, SessionTracker
 from app.db.database import get_db, init_db, close_db, AsyncSessionLocal
@@ -27,6 +27,7 @@ from app.constants import (
 )
 from app.exceptions import (
     SessionNotFoundException,
+    DirectoryNotFoundException,
     session_not_found_error
 )
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -150,6 +151,17 @@ async def lifespan(app: FastAPI):
 
     # Startup
     logger.info("Starting Claudia backend services...")
+
+    # Check required directories exist
+    try:
+        ensure_directories()
+        logger.info("✓ Required directories validated")
+    except DirectoryNotFoundException as e:
+        logger.error(
+            f"Cannot start: {e.directory_path} does not exist. "
+            "Please ensure Claude Code is installed and configured. "
+            "Continuing startup for development, but monitoring will not work."
+        )
 
     # Initialize database connection pool
     await init_db()

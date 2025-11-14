@@ -28,6 +28,14 @@ class ServiceNotInitializedException(ClaudiaException):
         super().__init__(f"Service not initialized: {service_name}")
 
 
+class DirectoryNotFoundException(ClaudiaException):
+    """Raised when a required directory does not exist"""
+
+    def __init__(self, directory_path: str):
+        self.directory_path = directory_path
+        super().__init__(f"Required directory not found: {directory_path}")
+
+
 def session_not_found_error(session_id: str) -> HTTPException:
     """
     Convert SessionNotFoundException to HTTP 422 Unprocessable Entity
