@@ -97,9 +97,9 @@ class ClaudeCodeEventHandler(FileSystemEventHandler):
                             'timestamp': event_data.get('timestamp')
                         })
 
-        except json.JSONDecodeError:
-            # Malformed JSON, skip
-            pass
+        except json.JSONDecodeError as e:
+            # Malformed JSON in transcript (can happen during writes)
+            logger.warning(f"Malformed JSON in transcript {transcript_path}: {e}")
         except Exception as e:
             logger.error(f"Error parsing transcript update: {e}")
 

@@ -11,6 +11,7 @@ from loguru import logger
 
 from app.db.models import SessionModel, ToolExecutionModel
 from app.constants import SESSION_TIMEOUT_MINUTES
+from app.exceptions import SessionNotFoundException
 
 
 class SessionTracker:
@@ -64,15 +65,15 @@ class SessionTracker:
         logger.info(f"Started tracking session: {session_id} ({project_name})")
         return session
 
-    async def end_session(self, db: AsyncSession, session_id: str) -> Optional[SessionModel]:
+    async def end_session(self, db: AsyncSession, session_id: str) -> SessionModel:
         """Mark a session as ended by updating database"""
         stmt = select(SessionModel).where(SessionModel.session_id == session_id)
         result = await db.execute(stmt)
         session = result.scalar_one_or_none()
 
         if not session:
-            logger.warning(f"Attempted to end unknown session: {session_id}")
-            return None
+            logger.error(f"Cannot end unknown session: {session_id}")
+            raise SessionNotFoundException(session_id)
 
         session.is_active = False
         session.ended_at = datetime.now(timezone.utc)
@@ -90,7 +91,7 @@ class SessionTracker:
         result: Optional[Dict[str, Any]] = None,
         error: Optional[str] = None,
         duration_ms: Optional[int] = None
-    ) -> Optional[ToolExecutionModel]:
+    ) -> ToolExecutionModel:
         """Record a tool execution for a session"""
 
         # Find session
@@ -99,8 +100,8 @@ class SessionTracker:
         session = result_row.scalar_one_or_none()
 
         if not session:
-            logger.warning(f"Cannot record tool execution for unknown session: {session_id}")
-            return None
+            logger.error(f"Cannot record tool execution for unknown session: {session_id}")
+            raise SessionNotFoundException(session_id)
 
         # Create tool execution record
         tool_execution = ToolExecutionModel(

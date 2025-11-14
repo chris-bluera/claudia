@@ -25,6 +25,10 @@ from app.constants import (
     EVENT_TOOL_EXECUTION,
     EVENT_SETTINGS_UPDATE
 )
+from app.exceptions import (
+    SessionNotFoundException,
+    session_not_found_error
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # Configure logging
@@ -320,15 +324,18 @@ async def session_end(req: SessionEndRequest, db: AsyncSession = Depends(get_db)
     if not session_tracker:
         raise HTTPException(status_code=503, detail="Session tracker not initialized")
 
-    await session_tracker.end_session(db, req.session_id)
+    try:
+        await session_tracker.end_session(db, req.session_id)
 
-    session = await session_tracker.get_session(db, req.session_id)
-    session_data = session.to_dict() if session else {"session_id": req.session_id}
+        session = await session_tracker.get_session(db, req.session_id)
+        session_data = session.to_dict() if session else {"session_id": req.session_id}
 
-    # Broadcast to WebSocket clients
-    await broadcast_event(EVENT_SESSION_END, session_data)
+        # Broadcast to WebSocket clients
+        await broadcast_event(EVENT_SESSION_END, session_data)
 
-    return {"status": "ended", "session_id": req.session_id}
+        return {"status": "ended", "session_id": req.session_id}
+    except SessionNotFoundException:
+        raise session_not_found_error(req.session_id)
 
 
 # Settings endpoints
@@ -366,24 +373,27 @@ async def tool_use(req: ToolUseRequest, db: AsyncSession = Depends(get_db)):
     if not session_tracker:
         return {"status": "ok", "note": "Session tracker not initialized"}
 
-    # Record tool execution in database
-    await session_tracker.record_tool_execution(
-        db=db,
-        session_id=req.session_id,
-        tool_name=req.tool_name,
-        parameters=req.parameters
-    )
+    try:
+        # Record tool execution in database
+        await session_tracker.record_tool_execution(
+            db=db,
+            session_id=req.session_id,
+            tool_name=req.tool_name,
+            parameters=req.parameters
+        )
 
-    # Broadcast to WebSocket clients
-    event_data = {
-        "session_id": req.session_id,
-        "tool_name": req.tool_name,
-        "parameters": req.parameters,
-        "timestamp": req.timestamp
-    }
-    await broadcast_event(EVENT_TOOL_EXECUTION, event_data)
+        # Broadcast to WebSocket clients
+        event_data = {
+            "session_id": req.session_id,
+            "tool_name": req.tool_name,
+            "parameters": req.parameters,
+            "timestamp": req.timestamp
+        }
+        await broadcast_event(EVENT_TOOL_EXECUTION, event_data)
 
-    return {"status": "recorded"}
+        return {"status": "recorded"}
+    except SessionNotFoundException:
+        raise session_not_found_error(req.session_id)
 
 
 @app.post("/api/monitoring/settings-snapshot")
