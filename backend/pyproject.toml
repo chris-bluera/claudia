@@ -1,0 +1,17 @@
+[project]
+name = "claudia-backend"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "alembic>=1.17.1",
+    "asyncpg>=0.30.0",
+    "fastapi[standard]>=0.121.2",
+    "pgvector>=0.4.1",
+    "pydantic-settings>=2.12.0",
+    "python-dotenv>=1.2.1",
+    "sqlalchemy>=2.0.44",
+    "watchdog>=6.0.0",
+    "websockets>=15.0.1",
+]
