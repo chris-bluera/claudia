@@ -76,10 +76,17 @@ Monitor the backend logs to see hook events coming through.
 
 ### Future Enhancements
 
-1. **Semantic Search**: Index conversations with pgvector
+1. **Semantic Search**: Index conversations with pgvector (using OpenRouter for embeddings)
 2. **Pattern Recognition**: Identify recurring development workflows
 3. **Context Injection**: Augment prompts with relevant history
 4. **Team Sharing**: Export/import successful patterns
+
+### Technology Choices
+
+- **Embeddings**: Using OpenRouter API for embeddings (supports multiple providers)
+  - Model: `openai/text-embedding-3-small` (via OpenRouter)
+  - Base URL: `https://openrouter.ai/api/v1`
+  - Allows flexibility to switch providers without code changes
 
 ### Development Tips
 

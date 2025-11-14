@@ -33,12 +33,16 @@ class Settings(BaseSettings):
 
     # pgvector settings (for future use)
     embedding_model: str = Field(
-        default="text-embedding-3-small",
-        description="OpenAI embedding model for pgvector"
+        default="openai/text-embedding-3-small",
+        description="Embedding model for pgvector (via OpenRouter)"
     )
-    openai_api_key: Optional[str] = Field(
+    openrouter_api_key: Optional[str] = Field(
         default=None,
-        description="OpenAI API key for embeddings"
+        description="OpenRouter API key for embeddings"
+    )
+    openrouter_base_url: str = Field(
+        default="https://openrouter.ai/api/v1",
+        description="OpenRouter API base URL"
     )
 
     class Config:
