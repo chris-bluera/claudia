@@ -32,10 +32,27 @@
 
     <SessionTabs v-if="activeSessions.length > 0" />
 
-    <div class="panels-grid">
-      <SessionsPanel :sessions="activeSessions" :loading="isLoading" />
-      <ActivityFeed :events="recentActivity" />
-      <SettingsPanel :settings="settings" />
+    <!-- Main content area - conditional based on selection -->
+    <div v-if="!selectedSessionId" class="global-view">
+      <!-- Global overview (existing panels grid) -->
+      <div class="panels-grid">
+        <SessionsPanel :sessions="activeSessions" :loading="isLoading" />
+        <ActivityFeed :events="recentActivity" />
+        <SettingsPanel :settings="settings" />
+      </div>
+    </div>
+
+    <div v-else class="session-view">
+      <!-- Session-specific details -->
+      <div class="session-layout">
+        <div class="session-main">
+          <SessionDetailPanel :session="selectedSession" />
+          <ConversationView :conversation="sessionConversation" />
+        </div>
+        <div class="session-sidebar">
+          <ToolExecutionList :tools="sessionTools" />
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -48,9 +65,12 @@ import SessionTabs from '@/components/SessionTabs.vue'
 import SessionsPanel from '@/components/SessionsPanel.vue'
 import ActivityFeed from '@/components/ActivityFeed.vue'
 import SettingsPanel from '@/components/SettingsPanel.vue'
+import SessionDetailPanel from '@/components/SessionDetailPanel.vue'
+import ToolExecutionList from '@/components/ToolExecutionList.vue'
+import ConversationView from '@/components/ConversationView.vue'
 
 const store = useMonitoringStore()
-const { settings, stats, health, isLoading, activeSessions, recentActivity } = storeToRefs(store)
+const { settings, stats, health, isLoading, activeSessions, recentActivity, selectedSession, selectedSessionId, sessionTools, sessionConversation } = storeToRefs(store)
 
 let statsInterval: number
 
@@ -169,6 +189,23 @@ onUnmounted(() => {
   grid-row: 2 / 3;
 }
 
+.session-layout {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: var(--space-lg);
+}
+
+.session-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.session-sidebar {
+  display: flex;
+  flex-direction: column;
+}
+
 @media (max-width: 968px) {
   .panels-grid {
     grid-template-columns: 1fr;
@@ -180,6 +217,10 @@ onUnmounted(() => {
   .panels-grid > :nth-child(3) {
     grid-column: 1 / 2;
     grid-row: auto;
+  }
+
+  .session-layout {
+    grid-template-columns: 1fr;
   }
 }
 </style>
