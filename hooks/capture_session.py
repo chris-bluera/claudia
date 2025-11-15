@@ -49,6 +49,10 @@ def main():
         transcript_path = input_data.get('transcript_path', '')
         permission_mode = input_data.get('permission_mode', '')
 
+        # Extract event-specific fields
+        source = input_data.get('source', '')  # SessionStart: startup|resume|clear|compact
+        reason = input_data.get('reason', '')  # SessionEnd: exit|logout|clear|prompt_input_exit|other
+
         # Ensure we have required fields with proper types
         if not isinstance(hook_event_name, str) or not isinstance(session_id, str):
             sys.exit(0)
@@ -74,7 +78,7 @@ def main():
             'env': env_vars
         }
 
-        # Prepare session data
+        # Prepare base session data
         session_data: dict[str, object] = {
             'session_id': session_id,
             'event_type': hook_event_name,
@@ -86,10 +90,18 @@ def main():
             'timestamp': datetime.now(timezone.utc).isoformat()
         }
 
-        # Send appropriate event
+        # Send appropriate event with event-specific fields
         if hook_event_name == 'SessionStart':
+            # Add source field for SessionStart
+            if source:
+                session_data['source'] = source
             send_to_claudia('sessions/start', session_data)
         elif hook_event_name == 'SessionEnd':
+            # Add reason field and updated session data for SessionEnd
+            if reason:
+                session_data['reason'] = reason
+            # Include session_metadata (raw hook data for full capture)
+            session_data['session_metadata'] = runtime_config
             send_to_claudia('sessions/end', session_data)
 
         # Always exit successfully

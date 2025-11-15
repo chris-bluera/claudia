@@ -3,14 +3,12 @@ Claudia Backend - Claude Code Companion API
 """
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
 import uvicorn
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 import asyncio
-import json
 import time
 import uuid
 
@@ -18,7 +16,6 @@ from app.config import settings, ensure_directories
 from app.logging_config import setup_logging
 from app.services import FileMonitor, SettingsAggregator, SessionTracker, get_search_service
 from app.db.database import get_db, init_db, close_db, AsyncSessionLocal
-from app.db.models import SessionModel
 from app.constants import (
     EVENT_SESSION_START,
     EVENT_SESSION_END,
@@ -50,12 +47,17 @@ class SessionStartRequest(BaseModel):
     transcript_path: Optional[str] = None
     permission_mode: Optional[str] = None
     runtime_config: Optional[Dict[str, Any]] = None
+    source: Optional[str] = None  # startup|resume|clear|compact
     event_type: Optional[str] = None
     timestamp: Optional[str] = None
 
 
 class SessionEndRequest(BaseModel):
     session_id: str
+    reason: Optional[str] = None  # exit|logout|clear|prompt_input_exit|other
+    project_path: Optional[str] = None
+    project_name: Optional[str] = None
+    session_metadata: Optional[Dict[str, Any]] = None
     event_type: Optional[str] = None
 
 
@@ -122,6 +124,7 @@ def handle_file_event(event: Dict[str, Any]):
 
         if session_id and project_path:
             async def start_session_task():
+                assert session_tracker is not None, "Service not initialized"
                 async with AsyncSessionLocal() as db:
                     try:
                         await session_tracker.start_session(
@@ -144,6 +147,7 @@ def handle_file_event(event: Dict[str, Any]):
         session_id = event.get('session_id')
         if session_id:
             async def record_tool_task():
+                assert session_tracker is not None, "Service not initialized"
                 async with AsyncSessionLocal() as db:
                     try:
                         await session_tracker.record_tool_execution(
@@ -342,7 +346,8 @@ async def session_start(req: SessionStartRequest, db: AsyncSession = Depends(get
         project_path=req.project_path,
         project_name=req.project_name,
         transcript_path=req.transcript_path,
-        runtime_config=req.runtime_config
+        runtime_config=req.runtime_config,
+        source=req.source
     )
 
     # Broadcast to WebSocket clients
@@ -358,7 +363,14 @@ async def session_end(req: SessionEndRequest, db: AsyncSession = Depends(get_db)
         raise HTTPException(status_code=503, detail="Session tracker not initialized")
 
     try:
-        await session_tracker.end_session(db, req.session_id)
+        await session_tracker.end_session(
+            db=db,
+            session_id=req.session_id,
+            reason=req.reason,
+            project_path=req.project_path,
+            project_name=req.project_name,
+            session_metadata=req.session_metadata
+        )
 
         session = await session_tracker.get_session(db, req.session_id)
         session_data = session.to_dict() if session else {"session_id": req.session_id}

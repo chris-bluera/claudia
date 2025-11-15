@@ -1,23 +1,6 @@
 # Claudia Development Context
 
-## About CLAUDE.md Files
-
-**What These Files Are:**
-- Automatically loaded context files for Claude Code (not human documentation)
-- Contain instructions, conventions, and project context
-- Loaded at session startup and on-demand when reading files in subdirectories
-
-**File Organization for This Project:**
-- `/CLAUDE.md` (this file) - Project-level overview, core principles, hook architecture
-- `/backend/CLAUDE.md` - Backend conventions (logging, errors, database)
-- `/frontend/CLAUDE.md` - Frontend conventions (Vue.js, TypeScript, design tokens)
-
-**Maintenance Guidelines:**
-- Be specific with instructions (clear rules > vague guidance)
-- Review and update as project evolves
-- Add backend-specific details to `backend/CLAUDE.md`
-- Add frontend-specific details to `frontend/CLAUDE.md`
-- Keep project-level status and cross-cutting concerns in this file
+> **About CLAUDE.md files:** See @CLAUDE_ABOUT.md for explanation of what these files are and how they're maintained.
 
 ---
 
@@ -118,8 +101,8 @@ claudia/                    # Our project root
 **Why Global?**
 - Claude Code's hook system is **additive** - hooks from all levels (managed/user/project/local) execute in parallel
 - Installing at user level monitors ALL Claude Code sessions across ALL projects
-- Each session has unique `session_id` → no duplicate events
-- Supports multiple concurrent sessions in different projects
+- `session_id` is stable per conversation (persists across `--continue`) → hooks fire once per event
+- Supports multiple concurrent sessions/conversations in different projects
 - Works when Claudia monitors itself (dogfooding)
 
 **Avoid Duplicates:**

@@ -1,5 +1,7 @@
 # Claudia Frontend - Development Context
 
+> **About CLAUDE.md files:** See @CLAUDE_ABOUT.md for explanation of what these files are and how they're maintained.
+
 Frontend-specific conventions and patterns for the Claudia Vue.js application.
 
 ## Core Philosophy

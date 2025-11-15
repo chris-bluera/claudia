@@ -1,5 +1,7 @@
 # Claudia Monitoring Hooks - Development Context
 
+> **About CLAUDE.md files:** See @CLAUDE_ABOUT.md for explanation of what these files are and how they're maintained.
+
 Development context for Claude Code when working with Claudia's monitoring hook system.
 
 ## Overview

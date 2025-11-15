@@ -32,9 +32,14 @@ class SessionTracker:
         project_path: str,
         project_name: str,
         transcript_path: Optional[str] = None,
-        runtime_config: Optional[Dict[str, Any]] = None
+        runtime_config: Optional[Dict[str, Any]] = None,
+        source: Optional[str] = None
     ) -> SessionModel:
-        """Start tracking a new session by inserting into database"""
+        """Start tracking a new session by inserting into database
+
+        If session exists (e.g., --continue), updates it with new data from Claude Code hook.
+        This ensures session state reflects current Claude Code state.
+        """
 
         # Check if session already exists
         stmt = select(SessionModel).where(
@@ -44,7 +49,32 @@ class SessionTracker:
         existing = result.scalar_one_or_none()
 
         if existing:
-            logger.warning(f"Session {session_id} already exists, returning existing")
+            logger.info(f"Session {session_id} resuming (source={source})")
+
+            # CRITICAL: Replace with new data from Claude Code hook
+            # This fixes the "0 active sessions" bug when using --continue
+            existing.project_path = project_path
+            existing.project_name = project_name
+            existing.started_at = datetime.now(timezone.utc)
+            existing.is_active = True
+            existing.ended_at = None  # Clear previous end time
+            existing.source = source
+
+            # Store raw hook data in session_metadata
+            session_metadata = runtime_config or {}
+            if transcript_path:
+                session_metadata['transcript_path'] = transcript_path
+            existing.session_metadata = session_metadata
+
+            # Our augmentations in claudia_metadata
+            if not existing.claudia_metadata:
+                existing.claudia_metadata = {}
+            if 'first_seen_at' not in existing.claudia_metadata:
+                existing.claudia_metadata['first_seen_at'] = str(existing.started_at)
+
+            await db.flush()
+            await db.refresh(existing, ['tool_executions'])
+            logger.info(f"Reactivated session: {session_id}")
             return existing
 
         # Create new session
@@ -52,11 +82,17 @@ class SessionTracker:
         if transcript_path:
             session_metadata['transcript_path'] = transcript_path
 
+        claudia_metadata = {
+            'first_seen_at': str(datetime.now(timezone.utc))
+        }
+
         session = SessionModel(
             session_id=session_id,
             project_path=project_path,
             project_name=project_name,
             session_metadata=session_metadata,
+            claudia_metadata=claudia_metadata,
+            source=source,
             started_at=datetime.now(timezone.utc),
             is_active=True
         )
@@ -67,11 +103,22 @@ class SessionTracker:
         # Refresh with eager loading to prevent MissingGreenlet in to_dict()
         await db.refresh(session, ['tool_executions'])
 
-        logger.info(f"Started tracking session: {session_id} ({project_name})")
+        logger.info(f"Started tracking session: {session_id} ({project_name}, source={source})")
         return session
 
-    async def end_session(self, db: AsyncSession, session_id: str) -> SessionModel:
-        """Mark a session as ended by updating database"""
+    async def end_session(
+        self,
+        db: AsyncSession,
+        session_id: str,
+        reason: Optional[str] = None,
+        project_path: Optional[str] = None,
+        project_name: Optional[str] = None,
+        session_metadata: Optional[Dict[str, Any]] = None
+    ) -> SessionModel:
+        """Mark a session as ended by updating database
+
+        Updates all fields with data from Claude Code hook.
+        """
         stmt = select(SessionModel).where(SessionModel.session_id == session_id)
         result = await db.execute(stmt)
         session = result.scalar_one_or_none()
@@ -80,11 +127,21 @@ class SessionTracker:
             logger.error(f"Cannot end unknown session: {session_id}")
             raise SessionNotFoundException(session_id)
 
+        # Replace with data from Claude Code hook
         session.is_active = False
         session.ended_at = datetime.now(timezone.utc)
+        session.reason = reason
+
+        # Update other fields if provided by hook
+        if project_path is not None:
+            session.project_path = project_path
+        if project_name is not None:
+            session.project_name = project_name
+        if session_metadata is not None:
+            session.session_metadata = session_metadata
 
         await db.flush()
-        logger.info(f"Ended session: {session_id}")
+        logger.info(f"Ended session: {session_id} (reason={reason})")
         return session
 
     async def record_tool_execution(

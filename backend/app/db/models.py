@@ -32,7 +32,20 @@ class SessionModel(Base):
     started_at = Column(DateTime(timezone=True), default=func.now(), nullable=False, index=True)
     ended_at = Column(DateTime(timezone=True), nullable=True)
     is_active = Column(Boolean, default=True, nullable=False, index=True)
+
+    # SessionStart source: startup|resume|clear|compact
+    source = Column(String(50), nullable=True)
+
+    # SessionEnd reason: exit|logout|clear|prompt_input_exit|other
+    reason = Column(String(50), nullable=True)
+
+    # Raw hook data from Claude Code (faithful copy of hook input)
     session_metadata = Column('metadata', JSONB, default={}, nullable=False)
+
+    # Claudia's internal tracking data (NOT from Claude Code API)
+    # Stores: first_seen_at, derived fields, internal state
+    claudia_metadata = Column(JSONB, default={}, nullable=False)
+
     created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now(), nullable=False)
 

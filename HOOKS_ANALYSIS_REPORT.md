@@ -654,12 +654,14 @@ LIMIT 10;
 - [x] Update `tool_executions` schema (added `result` JSONB column)
 - [x] Committed: `d16a227 Implement Phase 1: Critical conversation data capture`
 
-### Week 2: Embedding Pipeline
-- [ ] Set up OpenRouter integration
-- [ ] Create embedding queue (Celery/RQ)
-- [ ] Implement batch embedding generation
-- [ ] Add pgvector indexes
-- [ ] Create similarity search endpoints
+### Week 2: Embedding Pipeline ✅ COMPLETE
+- [x] Set up OpenRouter integration (`backend/app/services/embedding_service.py`)
+- [x] Create embedding generation (real-time, no queue needed at current scale)
+- [x] Implement batch embedding generation (AsyncOpenAI batch API)
+- [x] Add pgvector indexes (`database/phase2_vector_indexes.sql` - IVFFLAT)
+- [x] Create similarity search endpoints (`/api/search/*`)
+- [x] Auto-generate embeddings on capture (integrated into SessionTracker)
+- [x] Committed: `552a0a5 Implement Phase 2: Embedding pipeline with semantic search`
 
 ### Week 3: UI & Search
 - [ ] Build semantic search UI
@@ -672,6 +674,247 @@ LIMIT 10;
 - [ ] Embedding quality validation
 - [ ] Search relevance tuning
 - [ ] Documentation
+
+---
+
+## Session Model Investigation & Fixes (2025-11-14)
+
+### Issue: UI Displaying "0 Active Sessions"
+
+**Symptom:** Dashboard showed 0 active sessions despite being in active Claude Code session with ongoing tool executions and prompts being captured.
+
+### Investigation Process
+
+**Empirical Evidence from Logs:**
+```
+backend/logs/app.log timeline:
+17:16:26 - SessionStart: d1a3dea4-465d-4f28-ab4b-9947a52e9254 (WARNING: already exists)
+18:00:20 - SessionStart: d1a3dea4-465d-4f28-ab4b-9947a52e9254 (WARNING: already exists)
+18:07:55 - SessionEnd:   d1a3dea4-465d-4f28-ab4b-9947a52e9254
+18:07:58 - SessionStart: d1a3dea4-465d-4f28-ab4b-9947a52e9254 (3s later, after --continue)
+18:08:11 - Prompt captured (session still active)
+18:09:11 - Prompt captured (session still active)
+...ongoing activity for 20+ minutes
+```
+
+**Database State:**
+```sql
+SELECT session_id, started_at, ended_at, is_active
+FROM claudia.claude_sessions
+WHERE session_id = 'd1a3dea4-465d-4f28-ab4b-9947a52e9254';
+
+Result: Only 1 row (not multiple)
+- started_at: 2025-11-14 21:17:18 (original conversation start)
+- ended_at: 2025-11-14 23:07:55 (from SessionEnd)
+- is_active: false (not updated on resume!)
+```
+
+**Transcript File:**
+- Path: `~/.claude/projects/.../d1a3dea4-465d-4f28-ab4b-9947a52e9254.jsonl`
+- Filename GUID matches session_id exactly
+
+### Key Findings
+
+#### 1. session_id = Conversation ID (Persistent)
+
+**From Claude Code official docs** (hooks-reference.md:366-367):
+> "Runs when Claude Code starts a new session or resumes an existing session (which currently does start a new session under the hood)"
+
+**Interpretation:**
+- "New session under the hood" = new process invocation
+- But `session_id` remains stable (tied to conversation/transcript)
+- SessionStart matcher types indicate this:
+  - `startup` - Brand new conversation
+  - `resume` - From `--continue`, `--resume` (SAME session_id)
+  - `clear` - From `/clear`
+  - `compact` - From compaction
+
+**Conclusion:** `session_id` identifies the conversation, NOT the process invocation.
+
+#### 2. Root Cause: Not Updating Session Record
+
+**Problem in `session_tracker.py:start_session()` (lines 46-48):**
+```python
+if existing:
+    logger.warning(f"Session {session_id} already exists, returning existing")
+    return existing  # ❌ CRITICAL BUG - not updating!
+```
+
+**What happens:**
+1. User exits → SessionEnd sets `ended_at`, `is_active=False`
+2. User runs `claude --continue`
+3. SessionStart fires with SAME `session_id`
+4. Backend finds existing record, returns it WITHOUT updating
+5. Session still has `ended_at` set and `is_active=False`
+6. Query for active sessions returns 0 rows
+
+**Evidence of continued activity:**
+- Tools executing 8+ minutes AFTER SessionEnd
+- Prompts captured after SessionEnd
+- Session clearly active but marked inactive
+
+#### 3. Missing Critical Hook Data
+
+**Not Currently Capturing:**
+
+1. **SessionStart `source` field:**
+   - Available values: `startup`, `resume`, `clear`, `compact`
+   - Critical for distinguishing initial start vs --continue resume
+   - Location: `input_data.get('source')` in hook input
+
+2. **SessionEnd `reason` field:**
+   - Available values: `exit`, `logout`, `clear`, `prompt_input_exit`, `other`
+   - Useful for understanding session termination patterns
+   - Location: `input_data.get('reason')` in hook input
+
+3. **Potentially other fields in ALL hooks:**
+   - Need comprehensive analysis of Claude Code repository
+   - Ensure 100% data capture from every hook event type
+
+### Schema Design Decisions
+
+After analysis and discussion, decided on clean data separation:
+
+**New Schema Structure:**
+```python
+# Frequently queried fields (direct columns)
+source = Column(String(50))  # SessionStart: startup|resume|clear|compact
+reason = Column(String(50))  # SessionEnd: exit|logout|clear|etc
+
+# Raw hook data from Claude Code (faithful copy)
+session_metadata = Column('metadata', JSONB)
+# Stores: Complete hook input from Claude Code API
+
+# Claudia's internal augmentations (clearly separated)
+claudia_metadata = Column(JSONB)
+# Comment: "Claudia's internal tracking data, NOT from Claude Code API"
+# Stores: first_seen_at, derived fields (project_name), env checks, etc.
+```
+
+**Rationale:**
+- `session_metadata` = Faithful representation of Claude Code API data
+- `claudia_metadata` = Our augmentations, clearly marked
+- Can sanitize our data without touching Claude Code data
+- Direct columns for fields we query frequently
+
+### Required Fixes
+
+#### Fix 1: Update Session Record on Resume (CRITICAL)
+
+**Change `session_tracker.py:start_session()` to replace data wholesale:**
+```python
+if existing:
+    logger.info(f"Session {session_id} resuming (e.g., via --continue)")
+
+    # CRITICAL: Replace with new data from Claude Code hook
+    existing.project_path = project_path
+    existing.project_name = project_name
+    existing.started_at = datetime.now(timezone.utc)
+    existing.is_active = True
+    existing.ended_at = None  # Clear previous end
+    existing.source = source  # NEW
+    existing.session_metadata = session_metadata  # From hook
+
+    # Our augmentations in claudia_metadata
+    if 'first_seen_at' not in existing.claudia_metadata:
+        existing.claudia_metadata['first_seen_at'] = existing.started_at
+
+    await db.flush()
+    await db.refresh(existing, ['tool_executions'])
+    return existing
+```
+
+**Principle:** Reflect what Claude Code API sends us, wholesale replacement.
+
+#### Fix 2: Add Missing Schema Columns
+
+**Migration needed:**
+```sql
+ALTER TABLE claudia.claude_sessions
+  ADD COLUMN source VARCHAR(50),
+  ADD COLUMN reason VARCHAR(50),
+  ADD COLUMN claudia_metadata JSONB DEFAULT '{}';
+
+COMMENT ON COLUMN claudia.claude_sessions.claudia_metadata IS
+  'Claudia internal tracking data, NOT from Claude Code API';
+```
+
+#### Fix 3: Capture source and reason in Hooks
+
+**Update `hooks/capture_session.py`:**
+```python
+# Line ~50: Extract source and reason from hook input
+source = input_data.get('source', '')  # startup|resume|clear|compact
+reason = input_data.get('reason', '')  # exit|logout|clear|etc
+
+# Include in session_data sent to backend
+session_data = {
+    'session_id': session_id,
+    'source': source,  # NEW
+    'reason': reason,  # NEW
+    # ... rest of fields
+}
+```
+
+#### Fix 4: Comprehensive Hook Data Capture
+
+**Action Items:**
+- [ ] Analyze `reference/claude-code/claude-code-official-repo` for complete hook schemas
+- [ ] Document ALL available fields for each hook event type
+- [ ] Compare against current implementation in all hook scripts
+- [ ] Update ALL hooks to capture 100% of available data
+- [ ] Add validation tests to ensure complete data capture
+- [ ] Store raw hook input in `session_metadata` for each hook type
+
+### Implementation Status
+
+**Completed:**
+- ✅ Session model investigation and root cause identification
+- ✅ Schema design decisions (source, reason, claudia_metadata)
+- ✅ CLAUDE_ABOUT.md created to prevent future misunderstandings
+- ✅ All CLAUDE.md files updated with @CLAUDE_ABOUT.md reference
+
+**In Progress:**
+- 🔄 SessionModel schema updates
+- 🔄 Database migration
+- 🔄 Session tracker logic fixes
+
+**Pending:**
+- ⏳ Hook updates to capture source and reason
+- ⏳ Comprehensive hook schema analysis
+- ⏳ Backend endpoint updates
+- ⏳ UI verification of active sessions display
+- ⏳ Integration testing
+
+### Validation Plan
+
+1. **Test --continue behavior:**
+   - Start session → verify shows as active
+   - Exit → verify SessionEnd captured with reason
+   - Run `claude --continue` → verify session shows active again (key test!)
+   - Verify `source="resume"` captured correctly
+
+2. **Verify data integrity:**
+   - `session_metadata` contains raw Claude Code hook data
+   - `claudia_metadata` contains only our augmentations
+   - `source` and `reason` captured correctly
+
+3. **Confirm UI display:**
+   - Dashboard shows 1 active session (current conversation)
+   - Session persists correctly across --continue restarts
+   - Session count accurate
+
+### Lessons Learned
+
+1. **CLAUDE.md files can be wrong** - They reflect our understanding at time of writing, which can be incorrect. When found wrong, update immediately.
+
+2. **Database is single source of truth** - Always verify against database state, not just API responses or assumptions.
+
+3. **Replace data wholesale from API** - Don't selectively update fields. Store what the API sends, augment separately.
+
+4. **Capture ALL hook data** - Missing fields (source, reason) prevented proper diagnosis. Must capture complete data from every hook.
+
+5. **Empirical verification required** - Documentation can be ambiguous or misunderstood. Test behavior and verify with logs/database.
 
 ---
 

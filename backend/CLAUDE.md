@@ -1,5 +1,7 @@
 # Claudia Backend - Development Context
 
+> **About CLAUDE.md files:** See @CLAUDE_ABOUT.md for explanation of what these files are and how they're maintained.
+
 Backend-specific conventions and patterns for the Claudia FastAPI application.
 
 ## Core Philosophy
