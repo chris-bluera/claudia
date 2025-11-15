@@ -1,14 +1,17 @@
 <template>
   <div class="panel">
-    <div class="panel-header">
+    <div class="panel-header" @click="toggleCollapsed">
       <h2>Session Details</h2>
+      <button class="collapse-toggle" :aria-label="isCollapsed ? 'Expand' : 'Collapse'">
+        {{ isCollapsed ? '▼' : '▲' }}
+      </button>
     </div>
 
-    <div v-if="!session" class="empty-state">
+    <div v-if="!session && !isCollapsed" class="empty-state">
       <p>No session selected</p>
     </div>
 
-    <div v-else class="details-grid">
+    <div v-else-if="session && !isCollapsed" class="details-grid">
       <div class="detail-item">
         <span class="detail-label">Status</span>
         <span :class="['detail-value', 'status', session.is_active ? 'active' : 'inactive']">
@@ -59,11 +62,18 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
 import type { Session } from '@/types'
 
 defineProps<{
   session: Session | null
 }>()
+
+const isCollapsed = ref(true)
+
+function toggleCollapsed() {
+  isCollapsed.value = !isCollapsed.value
+}
 
 function formatDuration(seconds: number): string {
   if (seconds === undefined || seconds === null || isNaN(seconds)) return '—'
@@ -99,11 +109,36 @@ function formatTimestamp(timestamp: string): string {
 .panel-header {
   padding: var(--space-lg);
   border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color var(--duration-fast) var(--easing-standard);
+}
+
+.panel-header:hover {
+  background: var(--color-bg-secondary);
 }
 
 .panel-header h2 {
   font-size: var(--font-size-xl);
   margin: 0;
+}
+
+.collapse-toggle {
+  background: none;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-lg);
+  cursor: pointer;
+  padding: var(--space-xs);
+  line-height: 1;
+  transition: color var(--duration-fast) var(--easing-standard);
+}
+
+.collapse-toggle:hover {
+  color: var(--color-text-primary);
 }
 
 .empty-state {
