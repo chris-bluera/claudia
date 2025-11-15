@@ -20,6 +20,8 @@ from app.constants import (
     EVENT_SESSION_START,
     EVENT_SESSION_END,
     EVENT_TOOL_EXECUTION,
+    EVENT_USER_PROMPT,
+    EVENT_ASSISTANT_MESSAGE,
     EVENT_SETTINGS_UPDATE
 )
 from app.exceptions import (
@@ -524,6 +526,14 @@ async def capture_prompt(req: PromptCaptureRequest, db: AsyncSession = Depends(g
             prompt_text=req.prompt_text
         )
 
+        # Broadcast real-time update
+        prompt_data = {
+            'session_id': req.session_id,
+            'prompt_text': req.prompt_text,
+            'timestamp': req.timestamp
+        }
+        await broadcast_event(EVENT_USER_PROMPT, prompt_data)
+
         return {"status": "captured", "session_id": req.session_id}
     except SessionNotFoundException:
         raise session_not_found_error(req.session_id)
@@ -542,6 +552,15 @@ async def capture_message(req: MessageCaptureRequest, db: AsyncSession = Depends
             message_text=req.message_text,
             conversation_turn=req.conversation_turn
         )
+
+        # Broadcast real-time update
+        message_data = {
+            'session_id': req.session_id,
+            'message_text': req.message_text,
+            'conversation_turn': req.conversation_turn,
+            'timestamp': req.timestamp
+        }
+        await broadcast_event(EVENT_ASSISTANT_MESSAGE, message_data)
 
         return {"status": "captured", "session_id": req.session_id, "turn": req.conversation_turn}
     except SessionNotFoundException:

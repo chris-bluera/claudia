@@ -165,6 +165,17 @@ export const useMonitoringStore = defineStore('monitoring', () => {
         // Refresh settings
         fetchSettings()
         break
+
+      case 'user_prompt':
+      case 'assistant_message':
+        // Refresh conversation for the affected session
+        if (typeof event.data === 'object' && event.data !== null) {
+          const data = event.data as Record<string, unknown>
+          if ('session_id' in data && data.session_id === selectedSessionId.value) {
+            fetchSessionDetails(data.session_id as string)
+          }
+        }
+        break
     }
   }
 

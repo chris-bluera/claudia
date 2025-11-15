@@ -40,6 +40,7 @@ EVENT_SESSION_START = 'session_start'
 EVENT_SESSION_END = 'session_end'
 EVENT_TOOL_EXECUTION = 'tool_execution'
 EVENT_USER_PROMPT = 'user_prompt'
+EVENT_ASSISTANT_MESSAGE = 'assistant_message'
 EVENT_SETTINGS_UPDATE = 'settings_update'
 
 # Claude Code transcript event types
