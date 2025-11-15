@@ -676,9 +676,13 @@ LIMIT 10;
 - [x] Migration naming convention (01_, 02_, 03_ numeric prefix)
 - [x] CLAUDE_ABOUT.md documentation created
 - [x] Committed: `48896ef Fix "0 active sessions" bug when using --continue`
-- [ ] **Testing:** Restart Claude Code with `claude --continue` to verify fix
-- [ ] **Verify:** Database captures source='resume' and reason fields correctly
-- [ ] **Verify:** UI displays active session correctly after --continue
+- [x] **Testing:** Restart Claude Code with `claude --continue` verified ✅
+- [x] **Verify:** Database captures source='resume' and reason fields ✅
+- [x] **Verify:** API returns source/reason/claudia_metadata ✅
+- [x] **Verify:** Active sessions count = 1 (previously showed 0) ✅
+- [x] Add new fields to API serialization (`to_dict()` methods)
+- [x] Fix Pylance datetime conditional warnings
+- [x] Committed: `fe1f204 Add source/reason/claudia_metadata to API responses`
 
 ### Week 3: UI & Search
 - [ ] Build semantic search UI
