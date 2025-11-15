@@ -109,8 +109,16 @@ function formatTimestamp(timestamp: string): string {
   border: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
-  max-height: 100vh;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.tools-list {
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
+  flex: 1;
 }
 
 .panel-header {
@@ -147,11 +155,6 @@ function formatTimestamp(timestamp: string): string {
   margin-top: var(--space-sm);
 }
 
-.tools-list {
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-}
 
 .tool-item {
   border-bottom: 1px solid var(--color-border);

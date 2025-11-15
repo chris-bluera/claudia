@@ -43,7 +43,6 @@
     </div>
 
     <div v-else class="session-view">
-      <!-- Session-specific details -->
       <div class="session-layout">
         <div class="session-main">
           <SessionDetailPanel :session="selectedSession" />
@@ -95,6 +94,10 @@ onUnmounted(() => {
 <style scoped>
 .dashboard {
   padding: var(--space-xl);
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .header {
@@ -189,21 +192,35 @@ onUnmounted(() => {
   grid-row: 2 / 3;
 }
 
+.session-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .session-layout {
   display: grid;
   grid-template-columns: 2fr 1fr;
   gap: var(--space-lg);
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .session-main {
   display: flex;
   flex-direction: column;
   gap: var(--space-lg);
+  min-height: 0;
+  overflow: hidden;
 }
 
 .session-sidebar {
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
 }
 
 @media (max-width: 968px) {

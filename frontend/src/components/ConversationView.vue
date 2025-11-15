@@ -95,6 +95,9 @@ function formatTimestamp(timestamp: string): string {
   border: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .panel-header {
@@ -136,8 +139,8 @@ function formatTimestamp(timestamp: string): string {
   display: flex;
   flex-direction: column;
   gap: var(--space-lg);
-  max-height: 600px;
   overflow-y: auto;
+  flex: 1;
 }
 
 .entry {
