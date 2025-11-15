@@ -1,3 +1,6 @@
 [submodule "reference/claude-code/claude-code-official-repo"]
 	path = reference/claude-code/claude-code-official-repo
 	url = git@github.com:anthropics/claude-code.git
+[submodule "reference/embedding-atlas/embedding-atlas-official-repo"]
+	path = reference/embedding-atlas/embedding-atlas-official-repo
+	url = git@github.com:apple/embedding-atlas.git
