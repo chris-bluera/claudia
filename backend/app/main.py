@@ -696,20 +696,8 @@ async def terminal_websocket(websocket: WebSocket):
     pid, fd = pty.fork()
 
     if pid == 0:  # Child process
-        try:
-            # Create new session to isolate from parent process group
-            os.setsid()
-
-            # Change to user's home directory for isolation
-            home = os.path.expanduser("~")
-            os.chdir(home)
-
-            # Execute login shell
-            os.execvp(shell, [shell, "-l"])
-        except Exception as e:
-            # If exec fails, exit child immediately
-            print(f"Failed to start shell: {e}")
-            os._exit(1)
+        # Execute login shell (PTY already provides isolation)
+        os.execvp(shell, [shell, "-l"])
 
     # Parent process - track this session
     logger.info(f"Terminal session {session_id}: spawned shell PID {pid}")
