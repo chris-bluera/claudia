@@ -30,6 +30,8 @@
       </div>
     </div>
 
+    <SessionTabs v-if="activeSessions.length > 0" />
+
     <div class="panels-grid">
       <SessionsPanel :sessions="activeSessions" :loading="isLoading" />
       <ActivityFeed :events="recentActivity" />
@@ -42,6 +44,7 @@
 import { onMounted, onUnmounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useMonitoringStore } from '@/stores/monitoring'
+import SessionTabs from '@/components/SessionTabs.vue'
 import SessionsPanel from '@/components/SessionsPanel.vue'
 import ActivityFeed from '@/components/ActivityFeed.vue'
 import SettingsPanel from '@/components/SettingsPanel.vue'
@@ -72,8 +75,6 @@ onUnmounted(() => {
 <style scoped>
 .dashboard {
   padding: var(--space-xl);
-  max-width: 1400px;
-  margin: 0 auto;
 }
 
 .header {

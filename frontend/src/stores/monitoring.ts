@@ -21,6 +21,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
   const stats = ref<MonitoringStats | null>(null)
   const health = ref<HealthStatus | null>(null)
   const activityFeed = ref<ActivityEvent[]>([])
+  const selectedSessionId = ref<string | null>(null)
   const isConnected = ref(false)
   const isLoading = ref(false)
   const error = ref<string | null>(null)
@@ -30,8 +31,12 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     sessions.value.filter(s => s.is_active)
   )
 
+  const selectedSession = computed(() =>
+    sessions.value.find(s => s.session_id === selectedSessionId.value) || null
+  )
+
   const recentActivity = computed(() =>
-    activityFeed.value.slice(0, 50) // Keep last 50 events
+    activityFeed.value.slice(0, 50)
   )
 
   // Actions
@@ -173,6 +178,14 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     disconnectWebSocket()
   }
 
+  function selectSession(sessionId: string | null) {
+    selectedSessionId.value = sessionId
+  }
+
+  function clearSelection() {
+    selectedSessionId.value = null
+  }
+
   return {
     // State
     sessions,
@@ -180,11 +193,13 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     stats,
     health,
     activityFeed,
+    selectedSessionId,
     isConnected,
     isLoading,
     error,
     // Computed
     activeSessions,
+    selectedSession,
     recentActivity,
     // Actions
     fetchHealth,
@@ -192,6 +207,8 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     fetchSettings,
     fetchStats,
     refreshAll,
+    selectSession,
+    clearSelection,
     connectWebSocket,
     disconnectWebSocket,
     initialize,
