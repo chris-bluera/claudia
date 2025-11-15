@@ -685,65 +685,101 @@ async def websocket_endpoint(websocket: WebSocket):
 
 @app.websocket("/ws/terminal")
 async def terminal_websocket(websocket: WebSocket):
-    """Interactive terminal via PTY - spawns real shell"""
+    """Interactive terminal via PTY - spawns isolated shell session"""
     await websocket.accept()
-    logger.info("Terminal WebSocket client connected")
 
-    # Spawn PTY with user's shell
+    # Generate unique session ID for logging
+    session_id = str(uuid.uuid4())[:8]
+    logger.info(f"Terminal session {session_id} connected")
+
     shell = os.environ.get("SHELL", "/bin/zsh")
     pid, fd = pty.fork()
 
     if pid == 0:  # Child process
-        # Execute login shell to load .zshrc and environment
-        os.execvp(shell, [shell, "-l"])
+        try:
+            # Create new session to isolate from parent process group
+            os.setsid()
 
-    # Parent process - bridge PTY ↔ WebSocket
+            # Change to user's home directory for isolation
+            home = os.path.expanduser("~")
+            os.chdir(home)
+
+            # Execute login shell
+            os.execvp(shell, [shell, "-l"])
+        except Exception as e:
+            # If exec fails, exit child immediately
+            print(f"Failed to start shell: {e}")
+            os._exit(1)
+
+    # Parent process - track this session
+    logger.info(f"Terminal session {session_id}: spawned shell PID {pid}")
+
     loop = asyncio.get_event_loop()
 
     async def pty_to_websocket():
         """Read from PTY, send to WebSocket"""
         try:
             while True:
-                # Read from PTY in executor to avoid blocking
                 data = await loop.run_in_executor(None, os.read, fd, 1024)
                 if not data:
                     break
-                # Send to WebSocket, ignore encoding errors
                 await websocket.send_text(data.decode(errors="ignore"))
         except Exception as e:
-            logger.error(f"PTY read error: {e}")
+            logger.debug(f"Terminal session {session_id}: PTY read ended ({e})")
 
-    # Start PTY reader task
     reader_task = asyncio.create_task(pty_to_websocket())
 
     try:
-        # Read from WebSocket, write to PTY
         while True:
             msg = await websocket.receive_text()
             os.write(fd, msg.encode())
     except WebSocketDisconnect:
-        logger.info("Terminal WebSocket disconnected")
+        logger.info(f"Terminal session {session_id}: client disconnected")
     except Exception as e:
-        logger.error(f"Terminal WebSocket error: {e}")
+        logger.error(f"Terminal session {session_id}: error - {e}")
     finally:
-        # Cleanup: cancel reader, kill shell, close PTY
+        # Cleanup: aggressive process termination
         reader_task.cancel()
         try:
             await reader_task
         except asyncio.CancelledError:
             pass
 
+        # Try graceful shutdown first
         try:
-            os.kill(pid, signal.SIGTERM)
+            # Kill process group (negative PID)
+            os.kill(-pid, signal.SIGTERM)
+            logger.debug(f"Terminal session {session_id}: sent SIGTERM to process group {pid}")
         except ProcessLookupError:
-            pass
+            logger.debug(f"Terminal session {session_id}: process {pid} already dead")
+        except Exception as e:
+            logger.warning(f"Terminal session {session_id}: SIGTERM failed - {e}")
 
+        # Wait briefly for graceful shutdown
+        await asyncio.sleep(0.1)
+
+        # Force kill if still alive
+        try:
+            os.kill(-pid, signal.SIGKILL)
+            logger.debug(f"Terminal session {session_id}: sent SIGKILL to process group {pid}")
+        except ProcessLookupError:
+            pass  # Already dead, good
+        except Exception as e:
+            logger.warning(f"Terminal session {session_id}: SIGKILL failed - {e}")
+
+        # Close PTY
         try:
             os.close(fd)
         except OSError:
             pass
 
-        logger.info("Terminal session closed")
+        # Wait for zombie cleanup
+        try:
+            os.waitpid(pid, os.WNOHANG)
+        except ChildProcessError:
+            pass
+
+        logger.info(f"Terminal session {session_id}: cleanup complete")
 
 
 if __name__ == "__main__":
