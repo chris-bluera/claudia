@@ -10,7 +10,7 @@
       <p class="hint">Prompts and responses will appear here</p>
     </div>
 
-    <div v-else class="conversation-timeline">
+    <div v-else ref="timelineRef" class="conversation-timeline">
       <div
         v-for="entry in props.conversation"
         :key="entry.id"
@@ -36,6 +36,7 @@
 </template>
 
 <script setup lang="ts">
+import { ref, watch, nextTick } from 'vue'
 import type { ConversationEntry } from '@/types'
 
 interface Props {
@@ -45,6 +46,23 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   conversation: () => []
 })
+
+const timelineRef = ref<HTMLElement | null>(null)
+
+function scrollToBottom() {
+  nextTick(() => {
+    if (timelineRef.value) {
+      timelineRef.value.scrollTop = timelineRef.value.scrollHeight
+    }
+  })
+}
+
+// Watch for new messages and scroll to bottom
+watch(() => props.conversation, (newConversation) => {
+  if (newConversation && newConversation.length > 0) {
+    scrollToBottom()
+  }
+}, { deep: true })
 
 function getIcon(type: 'prompt' | 'message'): string {
   return type === 'prompt' ? '👤' : '🤖'
