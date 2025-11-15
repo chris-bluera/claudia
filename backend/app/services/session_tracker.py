@@ -438,7 +438,7 @@ class SessionTracker:
             else:
                 query = query.where(ToolExecutionModel.error.is_(None))
 
-        query = query.order_by(ToolExecutionModel.executed_at)
+        query = query.order_by(ToolExecutionModel.executed_at.desc())
         result = await db.execute(query)
         return list(result.scalars().all())
 

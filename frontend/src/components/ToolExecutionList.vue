@@ -109,6 +109,8 @@ function formatTimestamp(timestamp: string): string {
   border: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
+  max-height: 100vh;
+  overflow-y: auto;
 }
 
 .panel-header {
@@ -148,6 +150,7 @@ function formatTimestamp(timestamp: string): string {
 .tools-list {
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
 }
 
 .tool-item {
@@ -270,6 +273,25 @@ function formatTimestamp(timestamp: string): string {
 
 .error-content {
   color: var(--color-error);
+}
+
+/* Scrollbar styling for panel */
+.panel::-webkit-scrollbar {
+  width: 8px;
+}
+
+.panel::-webkit-scrollbar-track {
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-sm);
+}
+
+.panel::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.panel::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-tertiary);
 }
 
 @media (max-width: 968px) {
