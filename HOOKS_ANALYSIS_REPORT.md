@@ -663,6 +663,23 @@ LIMIT 10;
 - [x] Auto-generate embeddings on capture (integrated into SessionTracker)
 - [x] Committed: `552a0a5 Implement Phase 2: Embedding pipeline with semantic search`
 
+### Session Model Bug Fix (November 2025) ✅ COMPLETE
+- [x] Investigate "0 active sessions" bug and root cause analysis
+- [x] Identify session_id persistence across `--continue` invocations
+- [x] Schema design decisions (source, reason, claudia_metadata separation)
+- [x] Database migration 03 (`03_add_session_source_reason_claudia_metadata.sql`)
+- [x] SessionModel updates (add source, reason, claudia_metadata columns)
+- [x] Session tracker wholesale data replacement on resume
+- [x] Hook updates to capture source and reason (`capture_session.py`)
+- [x] Backend endpoint updates (SessionStartRequest, SessionEndRequest)
+- [x] Type safety improvements (assertions, remove unused imports)
+- [x] Migration naming convention (01_, 02_, 03_ numeric prefix)
+- [x] CLAUDE_ABOUT.md documentation created
+- [x] Committed: `48896ef Fix "0 active sessions" bug when using --continue`
+- [ ] **Testing:** Restart Claude Code with `claude --continue` to verify fix
+- [ ] **Verify:** Database captures source='resume' and reason fields correctly
+- [ ] **Verify:** UI displays active session correctly after --continue
+
 ### Week 3: UI & Search
 - [ ] Build semantic search UI
 - [ ] Add conversation replay view
@@ -674,6 +691,12 @@ LIMIT 10;
 - [ ] Embedding quality validation
 - [ ] Search relevance tuning
 - [ ] Documentation
+- [ ] Comprehensive hook schema analysis
+  - [ ] Analyze reference/claude-code for complete hook schemas
+  - [ ] Document ALL available fields for each hook event type
+  - [ ] Compare against current implementation
+  - [ ] Update ALL hooks to capture 100% of available data
+  - [ ] Add validation tests for data completeness
 
 ---
 
@@ -858,33 +881,11 @@ session_data = {
 
 #### Fix 4: Comprehensive Hook Data Capture
 
-**Action Items:**
-- [ ] Analyze `reference/claude-code/claude-code-official-repo` for complete hook schemas
-- [ ] Document ALL available fields for each hook event type
-- [ ] Compare against current implementation in all hook scripts
-- [ ] Update ALL hooks to capture 100% of available data
-- [ ] Add validation tests to ensure complete data capture
-- [ ] Store raw hook input in `session_metadata` for each hook type
+**Future Work:** See "Week 4: Testing & Refinement" in Implementation Roadmap above for comprehensive hook schema analysis tasks.
 
 ### Implementation Status
 
-**Completed:**
-- ✅ Session model investigation and root cause identification
-- ✅ Schema design decisions (source, reason, claudia_metadata)
-- ✅ CLAUDE_ABOUT.md created to prevent future misunderstandings
-- ✅ All CLAUDE.md files updated with @CLAUDE_ABOUT.md reference
-
-**In Progress:**
-- 🔄 SessionModel schema updates
-- 🔄 Database migration
-- 🔄 Session tracker logic fixes
-
-**Pending:**
-- ⏳ Hook updates to capture source and reason
-- ⏳ Comprehensive hook schema analysis
-- ⏳ Backend endpoint updates
-- ⏳ UI verification of active sessions display
-- ⏳ Integration testing
+**See "Session Model Bug Fix (November 2025)" section in Implementation Roadmap above** for complete task tracking with consistent checkbox format.
 
 ### Validation Plan
 
