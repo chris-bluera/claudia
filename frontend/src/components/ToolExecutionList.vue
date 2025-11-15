@@ -35,11 +35,25 @@
         <div v-if="isExpanded(tool.id)" class="tool-details">
           <div v-if="tool.parameters" class="detail-section">
             <h4>Parameters</h4>
-            <pre class="json-content">{{ formatJSON(tool.parameters) }}</pre>
+            <vue-json-pretty
+              :data="tool.parameters"
+              :show-line="true"
+              :show-icon="true"
+              :show-length="true"
+              :deep="2"
+              theme="light"
+            />
           </div>
           <div v-if="tool.result" class="detail-section">
             <h4>Result</h4>
-            <pre class="json-content">{{ formatJSON(tool.result) }}</pre>
+            <vue-json-pretty
+              :data="tool.result"
+              :show-line="true"
+              :show-icon="true"
+              :show-length="true"
+              :deep="2"
+              theme="light"
+            />
           </div>
           <div v-if="tool.error" class="detail-section error-section">
             <h4>Error</h4>
@@ -53,6 +67,8 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import VueJsonPretty from 'vue-json-pretty'
+import 'vue-json-pretty/lib/styles.css'
 import type { ToolExecution } from '@/types'
 
 interface Props {
@@ -75,11 +91,6 @@ function toggleExpanded(toolId: string) {
 
 function isExpanded(toolId: string): boolean {
   return expandedToolIds.value.has(toolId)
-}
-
-function formatJSON(obj: Record<string, unknown> | null): string {
-  if (!obj) return ''
-  return JSON.stringify(obj, null, 2)
 }
 
 function formatDuration(ms: number): string {
@@ -262,20 +273,51 @@ function formatTimestamp(timestamp: string): string {
   border-color: var(--color-error);
 }
 
-.json-content,
+/* vue-json-pretty design token overrides */
+.detail-section :deep(.vjs-tree) {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+}
+
+.detail-section :deep(.vjs-key) {
+  color: var(--color-text-primary);
+}
+
+.detail-section :deep(.vjs-value__string) {
+  color: var(--color-success);
+}
+
+.detail-section :deep(.vjs-value__number) {
+  color: var(--color-info);
+}
+
+.detail-section :deep(.vjs-value__boolean) {
+  color: var(--color-info);
+}
+
+.detail-section :deep(.vjs-value__null),
+.detail-section :deep(.vjs-value__undefined) {
+  color: var(--color-text-tertiary);
+}
+
+.detail-section :deep(.vjs-tree-node:hover) {
+  background-color: var(--color-bg-secondary);
+}
+
+.detail-section :deep(.vjs-tree__brackets) {
+  color: var(--color-text-secondary);
+}
+
 .error-content {
   margin: 0;
   font-family: var(--font-family-mono);
   font-size: var(--font-size-sm);
   line-height: 1.5;
-  color: var(--color-text-primary);
+  color: var(--color-error);
   overflow-x: auto;
   white-space: pre-wrap;
   word-break: break-all;
-}
-
-.error-content {
-  color: var(--color-error);
 }
 
 /* Scrollbar styling for panel */

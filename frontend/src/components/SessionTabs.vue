@@ -8,9 +8,6 @@
       @click="selectSession(session.session_id)"
     >
       <span class="tab-name">{{ session.project_name }}</span>
-      <span v-if="session.source" class="tab-badge" :class="`badge-${session.source}`">
-        {{ session.source }}
-      </span>
       <span class="tab-duration">{{ formatDuration(session.duration_seconds) }}</span>
     </button>
     <button
@@ -100,30 +97,6 @@ function formatDuration(seconds: number): string {
 
 .tab-name {
   font-weight: var(--font-weight-medium);
-}
-
-.tab-badge {
-  padding: 2px 6px;
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-xs);
-  text-transform: uppercase;
-  font-weight: var(--font-weight-semibold);
-}
-
-.badge-startup {
-  background: var(--color-success-light);
-  color: var(--color-success);
-}
-
-.badge-resume {
-  background: var(--color-accent-light);
-  color: var(--color-accent);
-}
-
-.badge-clear,
-.badge-compact {
-  background: var(--color-warning-light);
-  color: var(--color-warning);
 }
 
 .tab-duration {
