@@ -11,6 +11,9 @@ from pathlib import Path
 import asyncio
 import time
 import uuid
+import os
+import pty
+import signal
 
 from app.config import settings, ensure_directories
 from app.logging_config import setup_logging
@@ -678,6 +681,69 @@ async def websocket_endpoint(websocket: WebSocket):
         if websocket in active_connections:
             active_connections.remove(websocket)
         logger.info(f"WebSocket connection closed. Remaining: {len(active_connections)}")
+
+
+@app.websocket("/ws/terminal")
+async def terminal_websocket(websocket: WebSocket):
+    """Interactive terminal via PTY - spawns real shell"""
+    await websocket.accept()
+    logger.info("Terminal WebSocket client connected")
+
+    # Spawn PTY with user's shell
+    shell = os.environ.get("SHELL", "/bin/zsh")
+    pid, fd = pty.fork()
+
+    if pid == 0:  # Child process
+        # Execute login shell to load .zshrc and environment
+        os.execvp(shell, [shell, "-l"])
+
+    # Parent process - bridge PTY ↔ WebSocket
+    loop = asyncio.get_event_loop()
+
+    async def pty_to_websocket():
+        """Read from PTY, send to WebSocket"""
+        try:
+            while True:
+                # Read from PTY in executor to avoid blocking
+                data = await loop.run_in_executor(None, os.read, fd, 1024)
+                if not data:
+                    break
+                # Send to WebSocket, ignore encoding errors
+                await websocket.send_text(data.decode(errors="ignore"))
+        except Exception as e:
+            logger.error(f"PTY read error: {e}")
+
+    # Start PTY reader task
+    reader_task = asyncio.create_task(pty_to_websocket())
+
+    try:
+        # Read from WebSocket, write to PTY
+        while True:
+            msg = await websocket.receive_text()
+            os.write(fd, msg.encode())
+    except WebSocketDisconnect:
+        logger.info("Terminal WebSocket disconnected")
+    except Exception as e:
+        logger.error(f"Terminal WebSocket error: {e}")
+    finally:
+        # Cleanup: cancel reader, kill shell, close PTY
+        reader_task.cancel()
+        try:
+            await reader_task
+        except asyncio.CancelledError:
+            pass
+
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+
+        logger.info("Terminal session closed")
 
 
 if __name__ == "__main__":
