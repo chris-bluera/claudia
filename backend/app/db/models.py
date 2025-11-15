@@ -4,8 +4,7 @@ SQLAlchemy ORM models for Claudia database
 Maps to schema in database/init.sql
 """
 from datetime import datetime, timezone
-from typing import Optional
-from uuid import UUID, uuid4
+from uuid import uuid4
 from sqlalchemy import (
     Boolean, Column, DateTime, ForeignKey, Integer,
     String, Text, func
@@ -58,8 +57,8 @@ class SessionModel(Base):
     def to_dict(self) -> dict:
         """Convert to dictionary for API responses"""
         # Calculate duration in seconds
-        end_time = self.ended_at or datetime.now(timezone.utc)
-        duration_seconds = (end_time - self.started_at).total_seconds() if self.started_at else 0
+        end_time = self.ended_at if self.ended_at is not None else datetime.now(timezone.utc)
+        duration_seconds = (end_time - self.started_at).total_seconds() if self.started_at is not None else 0
 
         # Get tool count
         tool_count = len(self.tool_executions) if self.tool_executions else 0
@@ -81,13 +80,16 @@ class SessionModel(Base):
             'session_id': self.session_id,
             'project_path': self.project_path,
             'project_name': self.project_name,
-            'started_at': self.started_at.isoformat() if self.started_at else None,
-            'ended_at': self.ended_at.isoformat() if self.ended_at else None,
+            'started_at': self.started_at.isoformat() if self.started_at is not None else None,
+            'ended_at': self.ended_at.isoformat() if self.ended_at is not None else None,
             'is_active': self.is_active,
+            'source': self.source,
+            'reason': self.reason,
             'metadata': self.session_metadata,
+            'claudia_metadata': self.claudia_metadata,
             'duration_seconds': duration_seconds,
             'tool_count': tool_count,
-            'last_activity': last_activity.isoformat() if last_activity else None,
+            'last_activity': last_activity.isoformat() if last_activity is not None else None,
             'transcript_path': transcript_path,
             'runtime_config': runtime_config,
         }
@@ -122,7 +124,7 @@ class ToolExecutionModel(Base):
             'parameters': self.parameters,
             'result': self.result,
             'error': self.error,
-            'executed_at': self.executed_at.isoformat() if self.executed_at else None,
+            'executed_at': self.executed_at.isoformat() if self.executed_at is not None else None,
             'duration_ms': self.duration_ms,
         }
 
@@ -153,7 +155,7 @@ class SettingsSnapshotModel(Base):
             'settings_json': self.settings_json,
             'hierarchy_level': self.hierarchy_level,
             'file_path': self.file_path,
-            'captured_at': self.captured_at.isoformat() if self.captured_at else None,
+            'captured_at': self.captured_at.isoformat() if self.captured_at is not None else None,
         }
 
 
@@ -181,7 +183,7 @@ class UserPromptModel(Base):
             'id': str(self.id),
             'session_id': str(self.session_id),
             'prompt_text': self.prompt_text,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'created_at': self.created_at.isoformat() if self.created_at is not None else None,
             'embedding': self.embedding.tolist() if self.embedding is not None else None,
             'metadata': self.prompt_metadata,
         }
@@ -213,7 +215,7 @@ class AssistantMessageModel(Base):
             'session_id': str(self.session_id),
             'message_text': self.message_text,
             'conversation_turn': self.conversation_turn,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'created_at': self.created_at.isoformat() if self.created_at is not None else None,
             'embedding': self.embedding.tolist() if self.embedding is not None else None,
             'metadata': self.message_metadata,
         }
