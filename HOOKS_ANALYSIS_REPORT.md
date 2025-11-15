@@ -684,11 +684,67 @@ LIMIT 10;
 - [x] Fix Pylance datetime conditional warnings
 - [x] Committed: `fe1f204 Add source/reason/claudia_metadata to API responses`
 
-### Week 3: UI & Search
-- [ ] Build semantic search UI
-- [ ] Add conversation replay view
-- [ ] Implement filters (project, date, tool type)
-- [ ] Add export functionality
+### Week 3: UI & Search - Dashboard UX Overhaul
+
+**Context:** Current dashboard has no session selection, wastes whitespace (max-width: 1400px center column), and doesn't show new data (source, reason, prompts, messages, embeddings).
+
+**Data Hierarchy:**
+- **Global:** Stats, health, activity feed across all sessions, global settings
+- **Session-specific:** Conversation history, tool executions, session metadata, settings snapshots
+
+#### Phase 1: Foundation (Session Selection)
+- [ ] Remove/increase max-width constraint (Dashboard.vue) for better space usage
+- [ ] Create SessionTabs.vue component (horizontal tabs for active sessions)
+- [ ] Update SessionsPanel.vue to support selection interaction
+- [ ] Add selectedSessionId state to monitoring store (stores/monitoring.ts)
+- [ ] Show session source badge (startup|resume|clear|compact)
+- [ ] Filter ActivityFeed by selected session
+- [ ] Add visual indication of selected session
+
+#### Phase 2: Session Detail Views
+- [ ] Create ConversationView.vue - show prompts + assistant messages chronologically
+  - [ ] Display conversation_turn numbers
+  - [ ] Show embeddings status (embedded vs pending)
+  - [ ] Pair prompts with responses
+  - [ ] Add timestamps and duration indicators
+- [ ] Create ToolExecutionList.vue - detailed tool execution viewer
+  - [ ] Show parameters, results, errors in expandable rows
+  - [ ] Add tool type grouping or chronological timeline
+  - [ ] Highlight errors with clear visual treatment
+  - [ ] Show duration_ms for each execution
+- [ ] Create SessionDetailPanel.vue - session metadata display
+  - [ ] Show source, reason (if ended), duration, is_active
+  - [ ] Display transcript_path with link
+  - [ ] Show runtime_config overrides
+  - [ ] Display claudia_metadata (first_seen_at)
+- [ ] Layout main content area with session detail components
+- [ ] Handle "no session selected" state (show global overview)
+
+#### Phase 3: Search & Semantic Features
+- [ ] Create SemanticSearchPanel.vue for semantic search
+  - [ ] Input box with similarity threshold slider (0-1)
+  - [ ] Toggle: search all sessions vs current session only
+  - [ ] Results list with similarity scores
+  - [ ] Preview matched content with highlighting
+- [ ] Integrate with backend search endpoints
+  - [ ] /api/search/prompts - search user prompts
+  - [ ] /api/search/messages - search assistant messages
+  - [ ] /api/search/conversations - unified search
+- [ ] Display search results with context
+- [ ] Add "search within session" functionality
+- [ ] Show embedding dimensions (1536) and model info
+
+#### Phase 4: Layout Refinement & Responsive Design
+- [ ] Implement responsive breakpoints
+  - [ ] Mobile (< 968px): Stack vertically, tabs → dropdown
+  - [ ] Tablet (968px - 1280px): 2-column, sidebar collapse
+  - [ ] Desktop (> 1280px): Full 3-column layout
+- [ ] Add collapsible panels for space management
+- [ ] Polish transitions and interaction states
+- [ ] Ensure efficient whitespace utilization
+- [ ] Add loading states for async data
+- [ ] Implement error boundaries for component failures
+- [ ] Move global settings to separate Settings page/tab
 
 ### Week 4: Testing & Refinement
 - [ ] Load testing hooks
