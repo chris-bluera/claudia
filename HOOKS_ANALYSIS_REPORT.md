@@ -684,67 +684,24 @@ LIMIT 10;
 - [x] Fix Pylance datetime conditional warnings
 - [x] Committed: `fe1f204 Add source/reason/claudia_metadata to API responses`
 
-### Week 3: UI & Search - Dashboard UX Overhaul
+### Week 3: UI & Search - Dashboard UX Overhaul ✅ Phase 1 Complete
 
-**Context:** Current dashboard has no session selection, wastes whitespace (max-width: 1400px center column), and doesn't show new data (source, reason, prompts, messages, embeddings).
+**See:** @DASHBOARD_UX_PLAN.md for detailed implementation plan
 
-**Data Hierarchy:**
-- **Global:** Stats, health, activity feed across all sessions, global settings
-- **Session-specific:** Conversation history, tool executions, session metadata, settings snapshots
+**Phase 1: Foundation (Session Selection)** ✅ COMPLETE
+- [x] Remove/increase max-width constraint (Dashboard.vue)
+- [x] Create SessionTabs.vue component (horizontal tabs for active sessions)
+- [x] Update SessionsPanel.vue to support selection interaction
+- [x] Add selectedSessionId state to monitoring store
+- [x] Show session source badge (startup|resume|clear|compact)
+- [x] Filter ActivityFeed by selected session
+- [x] Committed: `72fc8ad Complete Phase 1: Session selection and activity filtering`
 
-#### Phase 1: Foundation (Session Selection)
-- [ ] Remove/increase max-width constraint (Dashboard.vue) for better space usage
-- [ ] Create SessionTabs.vue component (horizontal tabs for active sessions)
-- [ ] Update SessionsPanel.vue to support selection interaction
-- [ ] Add selectedSessionId state to monitoring store (stores/monitoring.ts)
-- [ ] Show session source badge (startup|resume|clear|compact)
-- [ ] Filter ActivityFeed by selected session
-- [ ] Add visual indication of selected session
+**Phase 2: Session Detail Views** - IN PROGRESS
+**Phase 3: Search & Semantic Features**
+**Phase 4: Layout Refinement & Responsive Design**
 
-#### Phase 2: Session Detail Views
-- [ ] Create ConversationView.vue - show prompts + assistant messages chronologically
-  - [ ] Display conversation_turn numbers
-  - [ ] Show embeddings status (embedded vs pending)
-  - [ ] Pair prompts with responses
-  - [ ] Add timestamps and duration indicators
-- [ ] Create ToolExecutionList.vue - detailed tool execution viewer
-  - [ ] Show parameters, results, errors in expandable rows
-  - [ ] Add tool type grouping or chronological timeline
-  - [ ] Highlight errors with clear visual treatment
-  - [ ] Show duration_ms for each execution
-- [ ] Create SessionDetailPanel.vue - session metadata display
-  - [ ] Show source, reason (if ended), duration, is_active
-  - [ ] Display transcript_path with link
-  - [ ] Show runtime_config overrides
-  - [ ] Display claudia_metadata (first_seen_at)
-- [ ] Layout main content area with session detail components
-- [ ] Handle "no session selected" state (show global overview)
-
-#### Phase 3: Search & Semantic Features
-- [ ] Create SemanticSearchPanel.vue for semantic search
-  - [ ] Input box with similarity threshold slider (0-1)
-  - [ ] Toggle: search all sessions vs current session only
-  - [ ] Results list with similarity scores
-  - [ ] Preview matched content with highlighting
-- [ ] Integrate with backend search endpoints
-  - [ ] /api/search/prompts - search user prompts
-  - [ ] /api/search/messages - search assistant messages
-  - [ ] /api/search/conversations - unified search
-- [ ] Display search results with context
-- [ ] Add "search within session" functionality
-- [ ] Show embedding dimensions (1536) and model info
-
-#### Phase 4: Layout Refinement & Responsive Design
-- [ ] Implement responsive breakpoints
-  - [ ] Mobile (< 968px): Stack vertically, tabs → dropdown
-  - [ ] Tablet (968px - 1280px): 2-column, sidebar collapse
-  - [ ] Desktop (> 1280px): Full 3-column layout
-- [ ] Add collapsible panels for space management
-- [ ] Polish transitions and interaction states
-- [ ] Ensure efficient whitespace utilization
-- [ ] Add loading states for async data
-- [ ] Implement error boundaries for component failures
-- [ ] Move global settings to separate Settings page/tab
+Detailed task breakdown, component specifications, API endpoints, and testing strategy documented in @DASHBOARD_UX_PLAN.md
 
 ### Week 4: Testing & Refinement
 - [ ] Load testing hooks

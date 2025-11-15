@@ -373,6 +373,109 @@ class SessionTracker:
             'unique_projects': unique_projects
         }
 
+    async def get_session_prompts(
+        self,
+        db: AsyncSession,
+        session_id: str
+    ) -> List[UserPromptModel]:
+        """Get all user prompts for a session, ordered chronologically"""
+        # Find session first
+        session = await self.get_session(db, session_id)
+        if not session:
+            logger.error(f"Cannot get prompts for unknown session: {session_id}")
+            raise SessionNotFoundException(session_id)
+
+        stmt = select(UserPromptModel).where(
+            UserPromptModel.session_id == session.id
+        ).order_by(UserPromptModel.created_at)
+
+        result = await db.execute(stmt)
+        return list(result.scalars().all())
+
+    async def get_session_messages(
+        self,
+        db: AsyncSession,
+        session_id: str
+    ) -> List[AssistantMessageModel]:
+        """Get all assistant messages for a session, ordered by turn"""
+        # Find session first
+        session = await self.get_session(db, session_id)
+        if not session:
+            logger.error(f"Cannot get messages for unknown session: {session_id}")
+            raise SessionNotFoundException(session_id)
+
+        stmt = select(AssistantMessageModel).where(
+            AssistantMessageModel.session_id == session.id
+        ).order_by(AssistantMessageModel.conversation_turn)
+
+        result = await db.execute(stmt)
+        return list(result.scalars().all())
+
+    async def get_session_tools(
+        self,
+        db: AsyncSession,
+        session_id: str,
+        tool_name: Optional[str] = None,
+        has_error: Optional[bool] = None
+    ) -> List[ToolExecutionModel]:
+        """Get tool executions with optional filtering"""
+        # Find session first
+        session = await self.get_session(db, session_id)
+        if not session:
+            logger.error(f"Cannot get tools for unknown session: {session_id}")
+            raise SessionNotFoundException(session_id)
+
+        query = select(ToolExecutionModel).where(
+            ToolExecutionModel.session_id == session.id
+        )
+
+        if tool_name:
+            query = query.where(ToolExecutionModel.tool_name == tool_name)
+
+        if has_error is not None:
+            if has_error:
+                query = query.where(ToolExecutionModel.error.isnot(None))
+            else:
+                query = query.where(ToolExecutionModel.error.is_(None))
+
+        query = query.order_by(ToolExecutionModel.executed_at)
+        result = await db.execute(query)
+        return list(result.scalars().all())
+
+    async def get_session_conversation(
+        self,
+        db: AsyncSession,
+        session_id: str
+    ) -> List[Dict[str, Any]]:
+        """Get merged conversation timeline (prompts + messages)"""
+        prompts = await self.get_session_prompts(db, session_id)
+        messages = await self.get_session_messages(db, session_id)
+
+        conversation = []
+
+        for prompt in prompts:
+            conversation.append({
+                'type': 'prompt',
+                'id': str(prompt.id),
+                'text': prompt.prompt_text,
+                'timestamp': prompt.created_at.isoformat(),
+                'has_embedding': prompt.embedding is not None
+            })
+
+        for message in messages:
+            conversation.append({
+                'type': 'message',
+                'id': str(message.id),
+                'text': message.message_text,
+                'timestamp': message.created_at.isoformat(),
+                'turn': message.conversation_turn,
+                'has_embedding': message.embedding is not None
+            })
+
+        # Sort chronologically
+        conversation.sort(key=lambda x: x['timestamp'])
+        return conversation
+
     async def _check_timeouts(
         self,
         db: AsyncSession,

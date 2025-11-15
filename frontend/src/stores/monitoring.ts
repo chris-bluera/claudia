@@ -2,7 +2,7 @@
  * Pinia store for monitoring Claude Code state
  */
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { apiClient } from '@/services/api'
 import { wsClient } from '@/services/websocket'
 import type {
@@ -11,7 +11,11 @@ import type {
   MonitoringStats,
   HealthStatus,
   ActivityEvent,
-  WebSocketEvent
+  WebSocketEvent,
+  UserPrompt,
+  AssistantMessage,
+  ToolExecution,
+  ConversationEntry
 } from '@/types'
 
 export const useMonitoringStore = defineStore('monitoring', () => {
@@ -25,6 +29,13 @@ export const useMonitoringStore = defineStore('monitoring', () => {
   const isConnected = ref(false)
   const isLoading = ref(false)
   const error = ref<string | null>(null)
+
+  // Session detail state
+  const sessionPrompts = ref<UserPrompt[]>([])
+  const sessionMessages = ref<AssistantMessage[]>([])
+  const sessionTools = ref<ToolExecution[]>([])
+  const sessionConversation = ref<ConversationEntry[]>([])
+  const loadingDetails = ref(false)
 
   // Computed
   const activeSessions = computed(() =>
@@ -186,6 +197,42 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     selectedSessionId.value = null
   }
 
+  async function fetchSessionDetails(sessionId: string) {
+    loadingDetails.value = true
+    error.value = null
+    try {
+      const [prompts, messages, tools, conversation] = await Promise.all([
+        apiClient.getSessionPrompts(sessionId),
+        apiClient.getSessionMessages(sessionId),
+        apiClient.getSessionTools(sessionId),
+        apiClient.getSessionConversation(sessionId)
+      ])
+
+      sessionPrompts.value = prompts.prompts
+      sessionMessages.value = messages.messages
+      sessionTools.value = tools.tools
+      sessionConversation.value = conversation.conversation
+    } catch (err) {
+      console.error('Error fetching session details:', err)
+      error.value = 'Failed to load session details'
+    } finally {
+      loadingDetails.value = false
+    }
+  }
+
+  // Watch for session selection changes
+  watch(selectedSessionId, async (newSessionId) => {
+    if (newSessionId) {
+      await fetchSessionDetails(newSessionId)
+    } else {
+      // Clear session details when no selection
+      sessionPrompts.value = []
+      sessionMessages.value = []
+      sessionTools.value = []
+      sessionConversation.value = []
+    }
+  })
+
   return {
     // State
     sessions,
@@ -197,6 +244,11 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     isConnected,
     isLoading,
     error,
+    sessionPrompts,
+    sessionMessages,
+    sessionTools,
+    sessionConversation,
+    loadingDetails,
     // Computed
     activeSessions,
     selectedSession,
@@ -209,6 +261,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     refreshAll,
     selectSession,
     clearSelection,
+    fetchSessionDetails,
     connectWebSocket,
     disconnectWebSocket,
     initialize,

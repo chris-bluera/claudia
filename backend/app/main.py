@@ -333,6 +333,75 @@ async def get_session(session_id: str, db: AsyncSession = Depends(get_db)):
     return session.to_dict()
 
 
+@app.get("/api/sessions/{session_id}/prompts")
+async def get_session_prompts(session_id: str, db: AsyncSession = Depends(get_db)):
+    """Get all user prompts for a specific session"""
+    if not session_tracker:
+        raise HTTPException(status_code=503, detail="Session tracker not initialized")
+
+    try:
+        prompts = await session_tracker.get_session_prompts(db, session_id)
+        return {
+            "prompts": [p.to_dict() for p in prompts],
+            "count": len(prompts)
+        }
+    except SessionNotFoundException:
+        raise session_not_found_error(session_id)
+
+
+@app.get("/api/sessions/{session_id}/messages")
+async def get_session_messages(session_id: str, db: AsyncSession = Depends(get_db)):
+    """Get all assistant messages for a specific session"""
+    if not session_tracker:
+        raise HTTPException(status_code=503, detail="Session tracker not initialized")
+
+    try:
+        messages = await session_tracker.get_session_messages(db, session_id)
+        return {
+            "messages": [m.to_dict() for m in messages],
+            "count": len(messages)
+        }
+    except SessionNotFoundException:
+        raise session_not_found_error(session_id)
+
+
+@app.get("/api/sessions/{session_id}/tools")
+async def get_session_tools(
+    session_id: str,
+    tool_name: Optional[str] = None,
+    has_error: Optional[bool] = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get all tool executions for a specific session with optional filtering"""
+    if not session_tracker:
+        raise HTTPException(status_code=503, detail="Session tracker not initialized")
+
+    try:
+        tools = await session_tracker.get_session_tools(db, session_id, tool_name, has_error)
+        return {
+            "tools": [t.to_dict() for t in tools],
+            "count": len(tools)
+        }
+    except SessionNotFoundException:
+        raise session_not_found_error(session_id)
+
+
+@app.get("/api/sessions/{session_id}/conversation")
+async def get_session_conversation(session_id: str, db: AsyncSession = Depends(get_db)):
+    """Get chronological conversation (prompts + messages) for a specific session"""
+    if not session_tracker:
+        raise HTTPException(status_code=503, detail="Session tracker not initialized")
+
+    try:
+        conversation = await session_tracker.get_session_conversation(db, session_id)
+        return {
+            "conversation": conversation,
+            "count": len(conversation)
+        }
+    except SessionNotFoundException:
+        raise session_not_found_error(session_id)
+
+
 @app.post("/api/sessions/start")
 async def session_start(req: SessionStartRequest, db: AsyncSession = Depends(get_db)):
     """Handle session start event from hooks"""

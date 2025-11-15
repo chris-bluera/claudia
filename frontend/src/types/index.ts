@@ -38,18 +38,53 @@ export interface Session {
   started_at: string
   ended_at: string | null
   is_active: boolean
+  source?: string
+  reason?: string | null
   runtime_config: RuntimeConfig
   last_activity: string
   tool_count: number
   transcript_path: string | null
   duration_seconds: number
+  claudia_metadata?: Record<string, unknown>
 }
 
 export interface ToolExecution {
-  session_id: string
+  id: string
+  session_id: number
   tool_name: string
-  parameters: Record<string, unknown>
+  parameters: Record<string, unknown> | null
+  result: Record<string, unknown> | null
+  error: string | null
+  executed_at: string | null
+  duration_ms: number | null
+}
+
+export interface UserPrompt {
+  id: string
+  session_id: number
+  prompt_text: string
+  created_at: string
+  embedding: number[] | null
+  metadata: Record<string, unknown>
+}
+
+export interface AssistantMessage {
+  id: string
+  session_id: number
+  message_text: string
+  conversation_turn: number
+  created_at: string
+  embedding: number[] | null
+  metadata: Record<string, unknown>
+}
+
+export interface ConversationEntry {
+  type: 'prompt' | 'message'
+  id: string
+  text: string
   timestamp: string
+  turn?: number
+  has_embedding: boolean
 }
 
 export interface SettingsHierarchy {

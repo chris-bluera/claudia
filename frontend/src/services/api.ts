@@ -5,7 +5,11 @@ import type {
   Session,
   SettingsSummary,
   MonitoringStats,
-  HealthStatus
+  HealthStatus,
+  UserPrompt,
+  AssistantMessage,
+  ToolExecution,
+  ConversationEntry
 } from '@/types'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
@@ -49,6 +53,30 @@ class ApiClient {
 
   async getSession(sessionId: string): Promise<Session> {
     return this.fetch(`/api/sessions/${sessionId}`)
+  }
+
+  async getSessionPrompts(sessionId: string): Promise<{ prompts: UserPrompt[]; count: number }> {
+    return this.fetch(`/api/sessions/${sessionId}/prompts`)
+  }
+
+  async getSessionMessages(sessionId: string): Promise<{ messages: AssistantMessage[]; count: number }> {
+    return this.fetch(`/api/sessions/${sessionId}/messages`)
+  }
+
+  async getSessionTools(
+    sessionId: string,
+    filters?: { tool_name?: string; has_error?: boolean }
+  ): Promise<{ tools: ToolExecution[]; count: number }> {
+    const params = new URLSearchParams()
+    if (filters?.tool_name) params.append('tool_name', filters.tool_name)
+    if (filters?.has_error !== undefined) params.append('has_error', String(filters.has_error))
+
+    const query = params.toString() ? `?${params}` : ''
+    return this.fetch(`/api/sessions/${sessionId}/tools${query}`)
+  }
+
+  async getSessionConversation(sessionId: string): Promise<{ conversation: ConversationEntry[]; count: number }> {
+    return this.fetch(`/api/sessions/${sessionId}/conversation`)
   }
 
   // Settings
