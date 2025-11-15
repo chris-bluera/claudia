@@ -13,9 +13,20 @@
     </div>
 
     <div v-else class="sessions-list">
-      <div v-for="session in sessions" :key="session.session_id" class="session-card">
+      <div
+        v-for="session in sessions"
+        :key="session.session_id"
+        class="session-card"
+        :class="{ selected: isSelected(session.session_id) }"
+        @click="selectSession(session.session_id)"
+      >
         <div class="session-header">
-          <div class="project-name">{{ session.project_name }}</div>
+          <div class="project-name">
+            {{ session.project_name }}
+            <span v-if="session.source" class="source-badge" :class="`source-${session.source}`">
+              {{ session.source }}
+            </span>
+          </div>
           <div class="session-time">{{ formatDuration(session.duration_seconds) }}</div>
         </div>
         <div class="session-meta">
@@ -35,12 +46,25 @@
 </template>
 
 <script setup lang="ts">
+import { storeToRefs } from 'pinia'
+import { useMonitoringStore } from '@/stores/monitoring'
 import type { Session } from '@/types'
 
 defineProps<{
   sessions: Session[]
   loading?: boolean
 }>()
+
+const store = useMonitoringStore()
+const { selectedSessionId } = storeToRefs(store)
+
+function isSelected(sessionId: string): boolean {
+  return selectedSessionId.value === sessionId
+}
+
+function selectSession(sessionId: string) {
+  store.selectSession(sessionId)
+}
 
 function formatDuration(seconds: number): string {
   if (seconds === undefined || seconds === null || isNaN(seconds)) return '—'
@@ -120,11 +144,18 @@ function formatTimestamp(timestamp: string): string {
   border-radius: var(--radius-md);
   margin-bottom: var(--space-md);
   border: 1px solid var(--color-border);
-  transition: border-color var(--duration-fast) var(--easing-default);
+  transition: all var(--duration-fast) var(--easing-default);
+  cursor: pointer;
 }
 
 .session-card:hover {
   border-color: var(--color-accent);
+  background: var(--color-bg-tertiary);
+}
+
+.session-card.selected {
+  border-color: var(--color-accent);
+  background: var(--color-accent-light);
 }
 
 .session-card:last-child {
@@ -178,5 +209,31 @@ function formatTimestamp(timestamp: string): string {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.source-badge {
+  display: inline-block;
+  margin-left: var(--space-xs);
+  padding: 2px var(--space-xs);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  font-weight: var(--font-weight-semibold);
+}
+
+.source-startup {
+  background: var(--color-success-light);
+  color: var(--color-success);
+}
+
+.source-resume {
+  background: var(--color-accent-light);
+  color: var(--color-accent);
+}
+
+.source-clear,
+.source-compact {
+  background: var(--color-warning-light);
+  color: var(--color-warning);
 }
 </style>

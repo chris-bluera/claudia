@@ -2,16 +2,20 @@
   <div class="panel">
     <div class="panel-header">
       <h2>Activity Feed</h2>
+      <span v-if="selectedSessionId" class="filter-indicator">
+        Filtered by session
+      </span>
     </div>
 
-    <div v-if="events.length === 0" class="empty-state">
-      <p>No recent activity</p>
+    <div v-if="filteredEvents.length === 0" class="empty-state">
+      <p v-if="selectedSessionId">No activity for this session</p>
+      <p v-else>No recent activity</p>
       <p class="hint">Real-time events will appear here</p>
     </div>
 
     <div v-else class="activity-list">
       <div
-        v-for="event in events"
+        v-for="event in filteredEvents"
         :key="event.id"
         :class="['activity-item', `type-${event.type.replace('_', '-')}`]"
       >
@@ -26,11 +30,24 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+import { storeToRefs } from 'pinia'
+import { useMonitoringStore } from '@/stores/monitoring'
 import type { ActivityEvent } from '@/types'
 
-defineProps<{
+const props = defineProps<{
   events: ActivityEvent[]
 }>()
+
+const store = useMonitoringStore()
+const { selectedSessionId } = storeToRefs(store)
+
+const filteredEvents = computed(() => {
+  if (!selectedSessionId.value) {
+    return props.events
+  }
+  return props.events.filter(event => event.session_id === selectedSessionId.value)
+})
 
 function getEventIcon(type: string): string {
   switch (type) {
@@ -89,6 +106,12 @@ function formatTimestamp(timestamp: string): string {
 
 .panel-header h2 {
   font-size: var(--font-size-xl);
+}
+
+.filter-indicator {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+  font-weight: var(--font-weight-normal);
 }
 
 .empty-state {
